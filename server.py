@@ -56,7 +56,42 @@ for d in [UPLOAD_DIR, PDF_UPLOAD_DIR, CSV_UPLOAD_DIR, LOGS_DIR]:
         pass
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
+app.url_map.strict_slashes = False
 CORS(app)
+
+class VercelPathMiddleware:
+    """
+    Middleware ensuring Vercel serverless rewrites restore the original incoming path.
+    """
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        from urllib.parse import parse_qs, urlencode, unquote
+        
+        # 1. Check HTTP headers provided by Vercel proxy
+        matched_path = environ.get('HTTP_X_MATCHED_PATH') or environ.get('HTTP_X_VERCEL_MATCHED_PATH')
+        if matched_path and matched_path.startswith('/api') and matched_path != '/api/index':
+            environ['PATH_INFO'] = matched_path
+
+        # 2. Check __route__ query parameter injected by vercel.json rewrite
+        query_str = environ.get('QUERY_STRING', '')
+        if '__route__' in query_str:
+            qs = parse_qs(query_str)
+            if '__route__' in qs:
+                route_val = unquote(qs['__route__'][0])
+                if route_val:
+                    if not route_val.startswith('/'):
+                        route_val = '/' + route_val
+                    if not route_val.startswith('/api'):
+                        route_val = '/api' + route_val
+                    environ['PATH_INFO'] = route_val
+                qs.pop('__route__', None)
+                environ['QUERY_STRING'] = urlencode(qs, doseq=True)
+
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = VercelPathMiddleware(app.wsgi_app)
 
 KNOWN_STATIC_PHRASES = {
     'dr. ashwani', 'ashwani k. sharma', 'ashwani sharma',
@@ -449,11 +484,22 @@ def dispatch_worker(sender_email, app_password, sender_name, subject, body, rega
 def serve_index():
     return send_file(os.path.join(BASE_DIR, 'index.html'))
 
-@app.route('/api')
-@app.route('/api/')
-@app.route('/api/index')
+@app.route('/api', methods=['GET', 'POST', 'OPTIONS'])
+@app.route('/api/', methods=['GET', 'POST', 'OPTIONS'])
+@app.route('/api/index', methods=['GET', 'POST', 'OPTIONS'])
 def api_health():
     return jsonify({'status': 'ok', 'service': 'CertiFlow API Engine', 'version': '1.0'})
+
+@app.route('/api/debug-env', methods=['GET', 'POST', 'OPTIONS'])
+def api_debug_env():
+    return jsonify({
+        'status': 'ok',
+        'path_info': request.environ.get('PATH_INFO'),
+        'query_string': request.environ.get('QUERY_STRING'),
+        'method': request.method,
+        'headers': dict(request.headers),
+        'is_vercel': IS_VERCEL
+    })
 
 @app.route('/api/config', methods=['GET', 'POST'])
 @app.route('/config', methods=['GET', 'POST'])
@@ -506,8 +552,8 @@ def api_upload_csv():
         f = request.files['file']
         csv_text = f.read().decode('utf-8', errors='ignore')
 
-    if not csv_text and request.form.get('csv_content'):
-        csv_text = request.form.get('csv_content')
+    if not csv_text:
+        csv_text = request.form.get('csv_content') or (request.json.get('csv_content') if request.is_json else "") or ""
 
     if not csv_text.strip():
         return jsonify({'error': 'No CSV data provided'}), 400
