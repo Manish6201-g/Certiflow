@@ -449,7 +449,14 @@ def dispatch_worker(sender_email, app_password, sender_name, subject, body, rega
 def serve_index():
     return send_file(os.path.join(BASE_DIR, 'index.html'))
 
+@app.route('/api')
+@app.route('/api/')
+@app.route('/api/index')
+def api_health():
+    return jsonify({'status': 'ok', 'service': 'CertiFlow API Engine', 'version': '1.0'})
+
 @app.route('/api/config', methods=['GET', 'POST'])
+@app.route('/config', methods=['GET', 'POST'])
 def api_config():
     if request.method == 'POST':
         data = request.json or {}
@@ -472,6 +479,7 @@ def api_config():
     })
 
 @app.route('/api/upload-csv', methods=['POST'])
+@app.route('/upload-csv', methods=['POST'])
 def api_upload_csv():
     csv_text = ""
     url = request.form.get('sheet_url') or (request.json.get('sheet_url') if request.is_json else None)
@@ -552,6 +560,7 @@ def api_upload_csv():
         return jsonify({'error': f'Error parsing CSV: {str(e)}'}), 400
 
 @app.route('/api/upload-pdfs', methods=['POST'])
+@app.route('/upload-pdfs', methods=['POST'])
 def api_upload_pdfs():
     files = request.files.getlist('pdfs') or request.files.getlist('file')
     if not files:
@@ -596,6 +605,7 @@ def api_upload_pdfs():
     })
 
 @app.route('/api/load-sample', methods=['POST'])
+@app.route('/load-sample', methods=['POST'])
 def api_load_sample():
     sample_type = (request.json or {}).get('type', 'participants')
 
@@ -664,6 +674,7 @@ def api_load_sample():
     })
 
 @app.route('/api/match', methods=['POST'])
+@app.route('/match', methods=['POST'])
 def api_match():
     name_col = request.json.get('name_col') if request.is_json else None
     email_col = request.json.get('email_col') if request.is_json else None
@@ -754,6 +765,7 @@ def api_match():
     })
 
 @app.route('/api/update-record', methods=['POST'])
+@app.route('/update-record', methods=['POST'])
 def api_update_record():
     data = request.json or {}
     record_id = data.get('id')
@@ -772,6 +784,7 @@ def api_update_record():
     return jsonify({'error': 'Record not found'}), 404
 
 @app.route('/api/preview-pdf/<path:filename>')
+@app.route('/preview-pdf/<path:filename>')
 def api_preview_pdf(filename):
     candidates = [
         os.path.join(PDF_UPLOAD_DIR, filename),
@@ -790,6 +803,7 @@ def api_preview_pdf(filename):
     return send_file(target, mimetype='application/pdf')
 
 @app.route('/api/send-test', methods=['POST'])
+@app.route('/send-test', methods=['POST'])
 def api_send_test():
     data = request.json or {}
     test_email = data.get('test_email', '').strip()
@@ -854,6 +868,7 @@ def api_send_test():
         return jsonify({'error': f"Failed to send test email: {str(e)}"}), 500
 
 @app.route('/api/dispatch', methods=['POST'])
+@app.route('/dispatch', methods=['POST'])
 def api_start_dispatch():
     if BATCH_STATE['dispatch']['is_running']:
         return jsonify({'error': 'A dispatch job is already running'}), 400
@@ -886,6 +901,7 @@ def api_start_dispatch():
     return jsonify({'status': 'ok', 'message': 'Dispatch started successfully'})
 
 @app.route('/api/dispatch-status', methods=['GET'])
+@app.route('/dispatch-status', methods=['GET'])
 def api_dispatch_status():
     st = BATCH_STATE['dispatch']
     pct = round((st['current_index'] / st['total'] * 100) if st['total'] > 0 else 0, 1)
@@ -904,6 +920,7 @@ def api_dispatch_status():
     })
 
 @app.route('/api/dispatch-control', methods=['POST'])
+@app.route('/dispatch-control', methods=['POST'])
 def api_dispatch_control():
     action = (request.json or {}).get('action')
     st = BATCH_STATE['dispatch']

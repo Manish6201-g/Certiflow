@@ -12,6 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let matchSearchQuery = '';
   let dispatchPollTimer = null;
 
+  async function safeJson(res) {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      const cleanSnippet = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150);
+      throw new Error(`Server returned HTTP ${res.status}: ${cleanSnippet || 'Empty response'}`);
+    }
+  }
+
   // Audit Tab State (Preloaded historical data)
   const auditData = window.CERT_DATA || { participants: [], coordinators: [] };
   const allAuditRecords = [
@@ -111,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sheet_url: url })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Failed to fetch Google Sheet');
       onCsvLoaded(data);
     } catch (err) {
@@ -131,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         method: 'POST',
         body: fd
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Upload failed');
       onCsvLoaded(data);
     } catch (err) {
@@ -179,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Failed to load sample');
       onCsvLoaded(data);
       onPdfsUploaded(data.pdf_count);
@@ -238,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         method: 'POST',
         body: fd
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Failed to upload PDFs');
       onPdfsUploaded(data.file_count);
     } catch (err) {
@@ -283,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
           extra_col: mapExtraCol.value
         })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Matching failed');
 
       currentMatchedRecords = data.records;
@@ -550,7 +560,7 @@ Warm regards,
           body: emailBodyInput.value.trim()
         })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Test send failed');
       testSendStatus.innerHTML = `<span style="color:#34d399;">✅ ${data.message}</span>`;
     } catch (err) {
@@ -593,7 +603,7 @@ Warm regards,
           delay: 1.0
         })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || 'Failed to start dispatch');
 
       // Start polling dispatch status
@@ -627,7 +637,7 @@ Warm regards,
   async function pollDispatchStatus() {
     try {
       const res = await fetch('/api/dispatch-status');
-      const data = await res.json();
+      const data = await safeJson(res);
 
       hudProgressFill.style.width = `${data.percentage}%`;
       hudPctText.textContent = `${data.percentage}%`;
@@ -973,7 +983,7 @@ Warm regards,
     try {
       const res = await fetch('/api/config');
       if (res.ok) {
-        serverConfig = await res.json();
+        serverConfig = await safeJson(res);
         if (serverConfig.gmail_user) {
           gmailSenderInput.value = serverConfig.gmail_user;
           testEmailInput.value = serverConfig.gmail_user;
