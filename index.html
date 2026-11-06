@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeZen CertiFlow — Automated Certificate Verification & Dispatch Hub</title>
+  <meta name="description" content="Production-grade certificate verification, reverse font engineering, and automated email dispatch system for CodeZen & CGC University.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-box">
+          <img src="assets/codezen_logo_transparent.png" alt="CodeZen Logo" class="brand-logo" onerror="this.style.display='none'">
+          <span class="logo-fallback">CZ</span>
+        </div>
+        <div class="brand-text">
+          <h1>CertiFlow <span class="badge-pill">CodeZen Engine</span></h1>
+          <p class="subtitle">Automated PDF Name Sorting, Verification & Bulk Email Dispatcher</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="stat-pills">
+          <div class="stat-pill">
+            <span class="stat-value" id="stat-total">136</span>
+            <span class="stat-label">Total Certs</span>
+          </div>
+          <div class="stat-pill success">
+            <span class="stat-value" id="stat-delivered">133</span>
+            <span class="stat-label">Delivered</span>
+          </div>
+          <div class="stat-pill warning">
+            <span class="stat-value" id="stat-missing">3</span>
+            <span class="stat-label">No Email</span>
+          </div>
+          <div class="stat-pill highlight">
+            <span class="stat-value">100%</span>
+            <span class="stat-label">Name Accuracy</span>
+          </div>
+        </div>
+        <button id="theme-toggle" class="btn btn-icon" aria-label="Toggle Dark/Light Mode" title="Toggle Theme">
+          <svg class="sun-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav" aria-label="Main Navigation">
+      <div class="tab-container">
+        <button class="tab-btn active" data-tab="tab-dispatch" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          Sort, Match & Dispatch
+        </button>
+        <button class="tab-btn" data-tab="tab-dashboard" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          Delivery Audit (136 Delivered)
+        </button>
+        <button class="tab-btn" data-tab="tab-studio" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+          Typography Studio & Generator
+        </button>
+        <button class="tab-btn" data-tab="tab-case-study" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          How It Was Solved (Architecture)
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Main Content Areas -->
+  <main class="main-content">
+
+    <!-- ========================================================= -->
+    <!-- TAB 1: SORT, MATCH & DISPATCH ENGINE (CORE INTERACTIVE) -->
+    <!-- ========================================================= -->
+    <section id="tab-dispatch" class="tab-pane active" role="tabpanel">
+      <div class="workflow-container">
+
+        <!-- Top Overview Banner -->
+        <div class="case-study-hero" style="margin-bottom:0.5rem;">
+          <span class="hero-tag">Automated Dispatch Pipeline</span>
+          <h2>Certificate Sorting, Font Stream Extraction & Email Dispatch</h2>
+          <p class="hero-desc">Whenever you have a batch of certificates and a spreadsheet, this automated system reads the actual names directly from the PDF font streams, matches them to the recipient emails with 100% precision, and dispatches them via Gmail SMTP.</p>
+        </div>
+
+        <!-- 2-Column Grid for Uploads: Step 1 & Step 2 -->
+        <div class="grid-2col">
+
+          <!-- STEP 1: Spreadsheet Data -->
+          <div class="step-card">
+            <div class="step-header">
+              <div class="step-title-group">
+                <span class="step-num">1</span>
+                <h3 class="step-title">Recipient Spreadsheet</h3>
+              </div>
+              <span class="step-badge" id="step1-status-badge">Awaiting Data</span>
+            </div>
+
+            <!-- Upload Area -->
+            <div class="dropzone" id="csv-dropzone">
+              <svg class="dropzone-icon" viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <div class="dropzone-text">
+                <strong>Click or Drag CSV / Excel file here</strong>
+                <span>Supports .csv, .xlsx, .tsv</span>
+              </div>
+              <input type="file" id="csv-file-input" accept=".csv,.xlsx,.tsv,.txt" style="display:none">
+            </div>
+
+            <!-- Google Sheet URL Input -->
+            <div style="margin-top: 1rem;">
+              <label for="sheet-url-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Or Paste Google Sheets Link:</label>
+              <div style="display:flex; gap:0.5rem;">
+                <input type="url" id="sheet-url-input" placeholder="https://docs.google.com/spreadsheets/d/..." style="flex:1; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                <button id="fetch-sheet-btn" class="btn btn-secondary" style="white-space:nowrap;">Fetch Sheet</button>
+              </div>
+            </div>
+
+            <!-- Quick Load Presets -->
+            <div class="preset-btn-bar">
+              <span style="font-size:0.75rem; color:var(--text-muted); align-self:center;">Quick Presets:</span>
+              <button id="load-sample-participants" class="btn-preset">⚡ Workshop Participants (116)</button>
+              <button id="load-sample-coordinators" class="btn-preset">⚡ Coordinators (20)</button>
+            </div>
+
+            <!-- Column Mapping Controls (Revealed when CSV loaded) -->
+            <div id="mapping-container" class="mapping-grid" style="display:none;">
+              <div class="mapping-field">
+                <label for="map-name-col">Name Column</label>
+                <select id="map-name-col"></select>
+              </div>
+              <div class="mapping-field">
+                <label for="map-email-col">Email Column</label>
+                <select id="map-email-col"></select>
+              </div>
+              <div class="mapping-field">
+                <label for="map-extra-col">Roll No / Duty Column</label>
+                <select id="map-extra-col"></select>
+              </div>
+            </div>
+
+            <div id="csv-summary-pill" style="margin-top:0.75rem; font-size:0.82rem; color:#34d399; display:none;">
+              ✅ Loaded <span id="csv-row-count">0</span> recipient rows from spreadsheet.
+            </div>
+          </div>
+
+          <!-- STEP 2: PDF Certificates -->
+          <div class="step-card">
+            <div class="step-header">
+              <div class="step-title-group">
+                <span class="step-num">2</span>
+                <h3 class="step-title">PDF Certificate Files</h3>
+              </div>
+              <span class="step-badge" id="step2-status-badge">Awaiting Files</span>
+            </div>
+
+            <!-- Upload Area -->
+            <div class="dropzone" id="pdf-dropzone">
+              <svg class="dropzone-icon" viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div class="dropzone-text">
+                <strong>Click or Drag PDF files / ZIP archive here</strong>
+                <span>Supports multiple PDFs or .zip archive</span>
+              </div>
+              <input type="file" id="pdf-file-input" accept=".pdf,.zip" multiple style="display:none">
+            </div>
+
+            <!-- Quick Local Files Mount Button -->
+            <div class="preset-btn-bar" style="margin-top:1.25rem;">
+              <span style="font-size:0.75rem; color:var(--text-muted); align-self:center;">Local Batches:</span>
+              <button id="mount-participant-pdfs" class="btn-preset">⚡ Mount 116 Participant PDFs</button>
+              <button id="mount-coordinator-pdfs" class="btn-preset">⚡ Mount 20 Coordinator PDFs</button>
+            </div>
+
+            <div id="pdf-summary-pill" style="margin-top:1.25rem; font-size:0.82rem; color:#34d399; display:none;">
+              ✅ Ready with <span id="pdf-file-count">0</span> certificate PDFs on server.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- STEP 3: MATCHING ENGINE TRIGGER & VERIFICATION ROSTER -->
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-title-group">
+              <span class="step-num">3</span>
+              <h3 class="step-title">Smart Name Extraction & Auto-Matching</h3>
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+              <button id="btn-run-match" class="btn btn-primary" style="padding:0.5rem 1.25rem; font-weight:700;">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Analyze PDFs & Match Recipients
+              </button>
+            </div>
+          </div>
+
+          <!-- Matching Engine Status & Metrics Bar -->
+          <div id="match-metrics-bar" class="stat-pills" style="margin-bottom:1.25rem; display:none;">
+            <div class="stat-pill">
+              <span class="stat-value" id="match-stat-total">0</span>
+              <span class="stat-label">Total PDFs</span>
+            </div>
+            <div class="stat-pill success">
+              <span class="stat-value" id="match-stat-exact">0</span>
+              <span class="stat-label">Exact Matches</span>
+            </div>
+            <div class="stat-pill warning">
+              <span class="stat-value" id="match-stat-missing">0</span>
+              <span class="stat-label">Missing Email</span>
+            </div>
+            <div class="stat-pill highlight">
+              <span class="stat-value" id="match-stat-unmatched">0</span>
+              <span class="stat-label">Unmatched</span>
+            </div>
+          </div>
+
+          <!-- Filter & Controls for Matched List -->
+          <div id="matched-controls" class="dashboard-controls" style="display:none; margin-bottom:1rem;">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="matched-search" placeholder="Search extracted names, emails or PDF files...">
+            </div>
+
+            <div class="filter-group">
+              <button class="filter-chip active" data-match-filter="all">All (<span id="count-match-all">0</span>)</button>
+              <button class="filter-chip success" data-match-filter="ready">Ready to Send (<span id="count-match-ready">0</span>)</button>
+              <button class="filter-chip warning" data-match-filter="attention">Needs Attention (<span id="count-match-attention">0</span>)</button>
+            </div>
+
+            <div class="quick-actions">
+              <button id="select-all-btn" class="btn btn-secondary" style="font-size:0.8rem; padding:0.4rem 0.75rem;">Select All</button>
+              <button id="deselect-all-btn" class="btn btn-secondary" style="font-size:0.8rem; padding:0.4rem 0.75rem;">Deselect All</button>
+            </div>
+          </div>
+
+          <!-- Interactive Matched Table -->
+          <div class="table-wrapper" id="matched-table-wrapper" style="max-height: 440px; display:none;">
+            <table id="matched-table">
+              <thead>
+                <tr>
+                  <th scope="col" style="width:40px;"><input type="checkbox" id="master-select-chk" checked title="Select All"></th>
+                  <th scope="col" class="th-file">PDF Certificate</th>
+                  <th scope="col" class="th-name">Extracted Name from PDF</th>
+                  <th scope="col" class="th-name">Matched Sheet Name</th>
+                  <th scope="col" class="th-email">Recipient Email (Editable)</th>
+                  <th scope="col" class="th-roll">Roll No / Duty</th>
+                  <th scope="col" class="th-status">Match Confidence</th>
+                  <th scope="col" class="th-action">Preview</th>
+                </tr>
+              </thead>
+              <tbody id="matched-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Empty State -->
+          <div id="match-placeholder" style="text-align:center; padding:3rem 1.5rem; color:var(--text-muted);">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:0.75rem; opacity:0.5;"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            <p style="font-size:0.95rem; font-weight:500;">Upload your spreadsheet and PDF files above, then click <strong>"Analyze PDFs & Match Recipients"</strong>.</p>
+            <span style="font-size:0.8rem; opacity:0.7;">The reverse-engineering engine will decode font streams and associate each certificate with the right person.</span>
+          </div>
+        </div>
+
+        <!-- STEP 4: EMAIL SETTINGS & DISPATCH TRIGGER -->
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-title-group">
+              <span class="step-num">4</span>
+              <h3 class="step-title">Email Configuration & Bulk Dispatch</h3>
+            </div>
+            <div class="preset-btn-bar" style="margin-top:0;">
+              <button id="template-preset-participant" class="btn-preset">Participant Email Template</button>
+              <button id="template-preset-coordinator" class="btn-preset">Coordinator Email Template</button>
+            </div>
+          </div>
+
+          <!-- Email Configuration Grid -->
+          <div class="grid-2col" style="gap:1.5rem;">
+            <!-- Column 1: SMTP Settings -->
+            <div>
+              <div class="form-group" style="margin-bottom:1rem;">
+                <label for="gmail-sender" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Gmail Sender Address</label>
+                <input type="email" id="gmail-sender" value="manish001yadav0@gmail.com" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+              </div>
+
+              <div class="form-group" style="margin-bottom:1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                  <label for="gmail-password" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted);">Gmail App Password</label>
+                  <button type="button" id="toggle-pwd-btn" style="background:none; border:none; color:var(--accent-blue); font-size:0.75rem; cursor:pointer;">Show</button>
+                </div>
+                <input type="password" id="gmail-password" placeholder="16-character Google App Password" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem; font-family:var(--font-mono);">
+                <small style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Stored securely in <code>/Users/manish/certificates/.env</code></small>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="sender-name-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Sender Display Name</label>
+                  <input type="text" id="sender-name-input" value="CodeZen Club" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                </div>
+                <div class="form-group">
+                  <label for="regards-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Regards / Sign-off</label>
+                  <input type="text" id="regards-input" value="CodeZen Club" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                </div>
+              </div>
+
+              <!-- Test Send Section -->
+              <div style="background:var(--bg-surface); padding:1rem; border-radius:var(--radius-md); border:1px solid var(--border-color); margin-top:1rem;">
+                <label for="test-email-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Send 1 Test Email to Yourself:</label>
+                <div style="display:flex; gap:0.5rem;">
+                  <input type="email" id="test-email-input" value="manish001yadav0@gmail.com" placeholder="your-email@gmail.com" style="flex:1; padding:0.45rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                  <button id="btn-send-test" class="btn btn-secondary" style="font-size:0.8rem; white-space:nowrap;">✉️ Send Test</button>
+                </div>
+                <div id="test-send-status" style="margin-top:0.5rem; font-size:0.8rem; display:none;"></div>
+              </div>
+            </div>
+
+            <!-- Column 2: Subject & Body Templates -->
+            <div>
+              <div class="form-group" style="margin-bottom:1rem;">
+                <label for="email-subject-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Subject Line</label>
+                <input type="text" id="email-subject-input" value="Certificate of Participation – Real-World API Integration Workshop | CGC University" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+              </div>
+
+              <div class="form-group" style="margin-bottom:1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                  <label for="email-body-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted);">Message Body Template</label>
+                  <span style="font-size:0.72rem; color:var(--text-muted);">Available tags: <code>{name}</code>, <code>{regards}</code></span>
+                </div>
+                <textarea id="email-body-input" rows="8" style="width:100%; padding:0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-family:inherit; font-size:0.85rem; line-height:1.5;">Dear {name},
+
+Thank you for actively participating in the workshop "Real-World API Integration Using Java", organised by the CodeZen Club and the Department of Applied Sciences, CGC University, Mohali.
+
+Please find your official Certificate of Participation attached with this email.
+
+We appreciate your enthusiasm and dedication, and we wish you continued success in your learning journey and future endeavours.
+
+Warm regards,
+{regards}</textarea>
+              </div>
+
+              <!-- Main Dispatch CTA -->
+              <div style="display:flex; justify-content:flex-end; gap:1rem; align-items:center;">
+                <span id="ready-to-send-text" style="font-size:0.85rem; color:var(--text-secondary); font-weight:600;">0 recipients selected</span>
+                <button id="btn-dispatch-all" class="btn btn-primary" style="padding:0.75rem 1.75rem; font-size:1rem; font-weight:800; background:linear-gradient(135deg, #10b981, #059669); border:none; box-shadow:0 4px 14px rgba(16, 185, 129, 0.4);">
+                  🚀 Dispatch All Verified Certificates
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 5: LIVE DISPATCH HUD & PROGRESS CONSOLE -->
+        <div id="dispatch-hud-card" class="step-card" style="display:none;">
+          <div class="dispatch-hud">
+            <div class="progress-header">
+              <span class="progress-title">Live Dispatch Stream</span>
+              <div style="display:flex; gap:0.5rem;">
+                <button id="hud-pause-btn" class="btn btn-secondary" style="font-size:0.8rem;">⏸️ Pause</button>
+                <button id="hud-abort-btn" class="btn btn-danger" style="font-size:0.8rem; background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">🛑 Stop Dispatch</button>
+              </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:0.4rem;">
+                <span>Progress (<span id="hud-pct-text">0%</span>)</span>
+                <span><span id="hud-current-num">0</span> / <span id="hud-total-num">0</span> emails processed</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="hud-progress-fill"></div>
+              </div>
+            </div>
+
+            <!-- Stat Grid -->
+            <div class="hud-stat-grid">
+              <div class="hud-stat-box">
+                <span class="hud-stat-val" id="hud-stat-delivered" style="color:#34d399;">0</span>
+                <span class="hud-stat-label">Delivered</span>
+              </div>
+              <div class="hud-stat-box">
+                <span class="hud-stat-val" id="hud-stat-skipped" style="color:#fbbf24;">0</span>
+                <span class="hud-stat-label">Skipped</span>
+              </div>
+              <div class="hud-stat-box">
+                <span class="hud-stat-val" id="hud-stat-failed" style="color:#f87171;">0</span>
+                <span class="hud-stat-label">Failed</span>
+              </div>
+            </div>
+
+            <!-- Terminal Output -->
+            <div class="live-console" id="hud-console">
+              <div class="console-entry">
+                <span class="console-time">[00:00:00]</span>
+                <span class="console-msg info">System initialized. Awaiting dispatch trigger...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- TAB 2: AUDIT & DELIVERY DASHBOARD (PREVIOUS WORKSHOP DATA) -->
+    <!-- ========================================================= -->
+    <section id="tab-dashboard" class="tab-pane" role="tabpanel">
+      <!-- Controls Bar -->
+      <div class="dashboard-controls">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="table-search" placeholder="Search by name, email, roll no, or duty..." aria-label="Search recipients">
+          <button id="clear-search" class="clear-btn" aria-label="Clear Search" style="display:none">&times;</button>
+        </div>
+
+        <div class="filter-group" role="group" aria-label="Filter records">
+          <button class="filter-chip active" data-filter="all">All (<span id="count-all">136</span>)</button>
+          <button class="filter-chip" data-filter="participants">Participants (116)</button>
+          <button class="filter-chip" data-filter="coordinators">Coordinators (20)</button>
+          <button class="filter-chip success" data-filter="delivered">Delivered (133)</button>
+          <button class="filter-chip warning" data-filter="missing">Missing Email (3)</button>
+        </div>
+
+        <div class="quick-actions">
+          <button id="export-csv-btn" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Audit Log
+          </button>
+        </div>
+      </div>
+
+      <!-- Alert Banner for Missing Emails -->
+      <div class="alert-banner warning">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-content">
+          <strong>Action Required on 3 Participants:</strong> Kavya Khurana, Sushant Raj, and Vansh had empty email addresses in the registration spreadsheet. Their generated certificates are ready locally in <code>/drive_certificates/</code>.
+        </div>
+      </div>
+
+      <!-- Responsive Data Table Region -->
+      <div class="table-wrapper" tabindex="0" role="region" aria-labelledby="audit-table-caption">
+        <table id="audit-table">
+          <caption id="audit-table-caption" class="sr-only">Certificate Delivery Audit and Verification Roster</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="th-num">#</th>
+              <th scope="col" class="th-file">PDF Certificate</th>
+              <th scope="col" class="th-name">Verified Name on PDF</th>
+              <th scope="col" class="th-type">Category</th>
+              <th scope="col" class="th-email">Recipient Email</th>
+              <th scope="col" class="th-roll">Roll No / Duty</th>
+              <th scope="col" class="th-status">Delivery Status</th>
+              <th scope="col" class="th-action">Inspect</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <!-- Populated via data.js -->
+          </tbody>
+        </table>
+      </div>
+      <div id="no-results" class="no-results" style="display:none">
+        <p>No recipients match your search query.</p>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- TAB 3: TYPOGRAPHY STUDIO & GENERATOR -->
+    <!-- ========================================================= -->
+    <section id="tab-studio" class="tab-pane" role="tabpanel">
+      <div class="studio-container">
+        <!-- Controls Sidebar -->
+        <div class="studio-controls card">
+          <h3>Typography Studio</h3>
+          <p class="studio-desc">Generate pixel-perfect replacement certificates for name corrections or missing participants directly on the high-resolution vector canvas.</p>
+
+          <div class="form-group">
+            <label for="custom-name">Recipient Name</label>
+            <input type="text" id="custom-name" value="Prabhdeep Singh" placeholder="e.g. Prabhdeep Singh">
+          </div>
+
+          <div class="form-group">
+            <label for="font-preset">Typeface Preset</label>
+            <select id="font-preset">
+              <option value="'Plus Jakarta Sans', sans-serif" selected>Axiforma Alternative (Plus Jakarta Sans)</option>
+              <option value="'Montserrat', sans-serif">Montserrat</option>
+              <option value="'Poppins', sans-serif">Poppins</option>
+              <option value="Arial, sans-serif">Arial Bold</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="font-size">Font Size (<span id="size-val">34</span>px)</label>
+              <input type="range" id="font-size" min="20" max="48" value="34">
+            </div>
+            <div class="form-group">
+              <label for="font-weight">Font Weight</label>
+              <select id="font-weight">
+                <option value="800" selected>800 (Black / ExtraBold)</option>
+                <option value="700">700 (Bold)</option>
+                <option value="600">600 (SemiBold)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="text-color">Color</label>
+              <div class="color-picker-wrap">
+                <input type="color" id="text-color" value="#0a3771">
+                <span class="color-hex" id="color-hex-label">#0A3771</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="vertical-offset">Y-Offset (<span id="y-val">338</span>px)</label>
+              <input type="range" id="vertical-offset" min="300" max="380" value="338">
+            </div>
+          </div>
+
+          <div class="studio-btn-row">
+            <button id="download-cert-btn" class="btn btn-primary">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download Certificate (PNG)
+            </button>
+            <button id="reset-canvas-btn" class="btn btn-secondary">Reset to Default</button>
+          </div>
+
+          <div class="tech-spec-box">
+            <h4>Original PDF Font Spec:</h4>
+            <ul>
+              <li><strong>Typeface:</strong> Axiforma-Black (CID subset)</li>
+              <li><strong>Size:</strong> 24.0 pt (scaled to canvas)</li>
+              <li><strong>Color CMYK:</strong> (1.0, 0.702, 0.1216, 0.302)</li>
+              <li><strong>Coordinates:</strong> Centered at baseline Y=326.45 pt</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Canvas Canvas Preview Area -->
+        <div class="studio-canvas-area">
+          <div class="canvas-header">
+            <span>Canvas Live Render (A4 Landscape)</span>
+            <span class="canvas-badge">Interactive Preview</span>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="cert-canvas" width="842" height="595"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- TAB 4: HOW IT WAS SOLVED (ARCHITECTURE & CASE STUDY) -->
+    <!-- ========================================================= -->
+    <section id="tab-case-study" class="tab-pane" role="tabpanel">
+      <div class="case-study-hero">
+        <span class="hero-tag">Engineering Case Study</span>
+        <h2>How We Automated 136 Certificates with Zero Mismatches</h2>
+        <p class="hero-desc">When bulk certificates were dumped from design tools without row-to-file mapping, naive automation would have delivered the wrong certificates to 116 people. Here is the reverse-engineering and verification architecture that solved it.</p>
+      </div>
+
+      <!-- Problem vs Solution Breakdown Grid -->
+      <div class="comparison-grid">
+        <div class="card danger-card">
+          <div class="card-status-badge danger">The Failure Mode</div>
+          <h3>Why Naive Batch Dispatch Fails</h3>
+          <p>Tools like Canva, CorelDRAW, and Google Drive do not export certificates matching your spreadsheet order:</p>
+          <ul>
+            <li><strong>Drive ID Scrambling:</strong> Google Drive splits files asynchronously, meaning <code>page-001.pdf</code> never correlates with Row 1 of your spreadsheet.</li>
+            <li><strong>Catastrophic Mismatch:</strong> Sending by row number causes 100% of participants to receive someone else's certificate.</li>
+            <li><strong>CID Font Encryption:</strong> Design tools don't write plain ASCII text; they write hex glyph IDs referencing custom subset tables.</li>
+          </ul>
+        </div>
+
+        <div class="card success-card">
+          <div class="card-status-badge success">The CertiFlow Solution</div>
+          <h3>Direct Font Stream Reverse-Engineering</h3>
+          <p>Our dual-layer extraction engine solves the root cause by reading inside the PDF objects:</p>
+          <ul>
+            <li><strong>CMap Table Decoding:</strong> We decompress the PDF's internal <code>/ObjStm</code> streams, locate the <code>/ToUnicode</code> mapping dictionary, and translate hex byte pairs back to unicode characters.</li>
+            <li><strong>Font-Size Isolation:</strong> Recipient names are isolated by targeting font size 24.0pt under <code>/F109</code> (Axiforma-Black), filtering out static titles.</li>
+            <li><strong>Fuzzy & Alias Matching:</strong> Token-matching and fuzzy similarity resolve typos, middle names, and inverted order automatically.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Step-by-Step Architecture Pipeline -->
+      <div class="pipeline-section">
+        <h3>The 5-Stage Verification Pipeline</h3>
+        <div class="pipeline-flow">
+          <div class="flow-step">
+            <span class="step-counter">01</span>
+            <h4>Drive File Extraction</h4>
+            <p>Downloaded raw PDF assets directly bypassing Google Drive's 50-file download throttle.</p>
+          </div>
+          <div class="flow-step">
+            <span class="step-counter">02</span>
+            <h4>Font Stream Decoding</h4>
+            <p>Extracted <code>/ToUnicode</code> mapping tables from object streams to read exact names directly from the PDFs.</p>
+          </div>
+          <div class="flow-step">
+            <span class="step-counter">03</span>
+            <h4>Fuzzy Sheet Cross-Check</h4>
+            <p>Cross-referenced extracted names against the registration roster, flagging missing emails and resolving duplicates.</p>
+          </div>
+          <div class="flow-step">
+            <span class="step-counter">04</span>
+            <h4>Live Stream Correction</h4>
+            <p>Supported on-the-fly corrections (such as Prabhdeep Singh's spelling) directly in the PDF streams.</p>
+          </div>
+          <div class="flow-step">
+            <span class="step-counter">05</span>
+            <h4>Polite SMTP Dispatch</h4>
+            <p>Delivered 133 emails via TLS Gmail SMTP with personalized attachments and custom regards.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- PDF Preview Modal -->
+  <div id="pdf-modal" class="modal-backdrop" style="display:none" aria-hidden="true" role="dialog">
+    <div class="modal-card" style="max-width: 860px;">
+      <div class="modal-header">
+        <h3 id="pdf-modal-title">Certificate Preview</h3>
+        <button id="pdf-modal-close" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:1rem;">
+        <iframe id="pdf-modal-iframe" class="pdf-preview-frame" src="about:blank"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inspection Drawer Modal -->
+  <div id="inspect-modal" class="modal-backdrop" style="display:none" aria-hidden="true" role="dialog">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-title">Certificate Inspection</h3>
+        <button id="modal-close" class="btn-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Injected via app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
