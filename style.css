@@ -195,6 +195,23 @@ body {
 .stat-pill.warning .stat-value { color: var(--accent-warning); }
 .stat-pill.highlight .stat-value { color: var(--accent-cyan); }
 
+@keyframes statPulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.22); filter: brightness(1.6); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.stat-value.pulse {
+  display: inline-block;
+  animation: statPulse 0.5s ease-out;
+}
+
+.badge-match.delivered {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
 .btn-icon {
   background: var(--bg-surface);
   border: 1px solid var(--border-color);

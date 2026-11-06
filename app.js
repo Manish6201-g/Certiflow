@@ -22,14 +22,104 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Audit Tab State (Preloaded historical data)
-  const auditData = window.CERT_DATA || { participants: [], coordinators: [] };
-  const allAuditRecords = [
-    ...auditData.participants.map(p => ({ ...p, category: 'Participant' })),
-    ...auditData.coordinators.map(c => ({ ...c, category: 'Coordinator' }))
-  ];
+  // Audit Tab State (Preloaded historical data + LocalStorage persistence)
+  let allAuditRecords = [];
+  try {
+    const saved = localStorage.getItem('certiflow_audit_records');
+    if (saved) {
+      allAuditRecords = JSON.parse(saved);
+    }
+  } catch (e) {}
+
+  if (!allAuditRecords || allAuditRecords.length === 0) {
+    const auditData = window.CERT_DATA || { participants: [], coordinators: [] };
+    allAuditRecords = [
+      ...auditData.participants.map(p => ({ ...p, category: 'Participant' })),
+      ...auditData.coordinators.map(c => ({ ...c, category: 'Coordinator' }))
+    ];
+  }
   let auditFilter = 'all';
   let auditSearchQuery = '';
+
+  const statTotalEl = document.getElementById('stat-total');
+  const statDeliveredEl = document.getElementById('stat-delivered');
+  const statMissingEl = document.getElementById('stat-missing');
+  const statAccuracyEl = document.getElementById('stat-accuracy');
+  const auditTabCountEl = document.getElementById('audit-tab-count');
+
+  function refreshHeaderStats() {
+    const total = allAuditRecords.length;
+    const delivered = allAuditRecords.filter(r => r.status === 'DELIVERED').length;
+    const missing = allAuditRecords.filter(r => !r.email || r.status === 'MISSING_EMAIL').length;
+    const accuracy = total > 0 ? Math.round(((total - missing) / total) * 100) : 100;
+
+    if (statTotalEl) statTotalEl.textContent = total;
+    if (statDeliveredEl) {
+      if (parseInt(statDeliveredEl.textContent, 10) !== delivered) {
+        statDeliveredEl.classList.remove('pulse');
+        void statDeliveredEl.offsetWidth; // trigger reflow for pulse animation
+        statDeliveredEl.classList.add('pulse');
+      }
+      statDeliveredEl.textContent = delivered;
+    }
+    if (statMissingEl) statMissingEl.textContent = missing;
+    if (statAccuracyEl) statAccuracyEl.textContent = `${accuracy}%`;
+    if (auditTabCountEl) auditTabCountEl.textContent = `${delivered} Delivered`;
+
+    const countAllSpan = document.getElementById('count-all');
+    if (countAllSpan) countAllSpan.textContent = total;
+
+    try {
+      localStorage.setItem('certiflow_audit_records', JSON.stringify(allAuditRecords));
+    } catch (e) {}
+  }
+
+  function recordAuditDelivery(item) {
+    const existingIdx = allAuditRecords.findIndex(r => 
+      (item.email && r.email && r.email.toLowerCase() === item.email.toLowerCase()) ||
+      (item.file && r.file && r.file.toLowerCase() === item.file.toLowerCase())
+    );
+
+    const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    if (existingIdx >= 0) {
+      allAuditRecords[existingIdx].status = 'DELIVERED';
+      allAuditRecords[existingIdx].sent_at = nowStr;
+      if (item.name) allAuditRecords[existingIdx].name = item.name;
+      if (item.cert_name) allAuditRecords[existingIdx].cert_name = item.cert_name;
+    } else {
+      allAuditRecords.unshift({
+        file: item.file || 'custom_cert.pdf',
+        name: item.name || item.cert_name || 'Recipient',
+        cert_name: item.cert_name || item.name || 'Recipient',
+        email: item.email || '',
+        category: item.category || 'Participant',
+        roll: item.roll || item.duty || '—',
+        duty: item.duty || item.roll || '—',
+        status: 'DELIVERED',
+        sent_at: nowStr
+      });
+    }
+
+    refreshHeaderStats();
+    renderAuditTable();
+  }
+
+  function updateMatchedRowDeliveryStatus(recordId, status) {
+    const rowInput = matchedTableBody.querySelector(`input.row-chk[data-id="${recordId}"]`);
+    if (rowInput) {
+      const tr = rowInput.closest('tr');
+      if (tr) {
+        const statusTd = tr.querySelector('.td-status');
+        if (statusTd) {
+          statusTd.innerHTML = '<span class="badge-match delivered">✅ Delivered</span>';
+        }
+      }
+    }
+  }
+
+  // Refresh header stats on page load
+  refreshHeaderStats();
 
   // --- Initial Config Fetch ---
   fetchConfig();
@@ -792,6 +882,21 @@ Warm regards,
         successCount++;
         rec.delivery_status = 'DELIVERED';
         appendConsoleLog('success', `Delivered to ${recipientEmail} (${recipientName}) — ${rec.pdf_file}`);
+
+        // Live update in matched table row
+        updateMatchedRowDeliveryStatus(rec.id, 'DELIVERED');
+
+        // Immediately refresh top header stats and audit table after every mail sent
+        recordAuditDelivery({
+          file: rec.pdf_file,
+          name: recipientName,
+          cert_name: recipientName,
+          email: recipientEmail,
+          roll: rec.extra,
+          duty: rec.extra,
+          category: (currentCsvData && currentCsvData.type === 'coordinators') ? 'Coordinator' : 'Participant',
+          status: 'DELIVERED'
+        });
       } catch (err) {
         failCount++;
         rec.delivery_status = 'FAILED';
