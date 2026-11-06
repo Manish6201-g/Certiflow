@@ -3,7 +3,6 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Flask](https://img.shields.io/badge/framework-Flask-black.svg)](https://flask.palletsprojects.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Engine: CodeZen](https://img.shields.io/badge/Engine-CodeZen-6366f1.svg)]()
 
 > **Production-grade web application to sort, reverse-engineer PDF font streams, cross-match against spreadsheets, and dispatch bulk certificates via Gmail SMTP with zero mismatches.**
 
@@ -98,18 +97,6 @@ Open **[http://localhost:5050](http://localhost:5050)** in your browser.
 - Customize the subject line and message body using dynamic tokens: `{name}`, `{regards}`.
 - Click **"✉️ Send Test"** to deliver a single real certificate to your own email to verify formatting before bulk sending.
 - Click **"🚀 Dispatch All Verified Certificates"** to initiate delivery with live progress tracking, polite rate-limiting, and pause/resume controls.
-
----
-
-## 🎨 Built-In Typography Studio
-
-Need to quickly fix a name typo or regenerate a single certificate? 
-The **Typography Studio** tab provides a client-side vector canvas editor to customize:
-- Recipient Name
-- Font Family (Axiforma Alternative, Plus Jakarta Sans, Montserrat, Poppins)
-- Font Size & Weight
-- Color Picker (`#0A3771`) & Baseline Y-offset
-- 1-Click PNG Download
 
 ---
 

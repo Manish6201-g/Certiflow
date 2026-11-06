@@ -1,5 +1,5 @@
 /**
- * CertiFlow — CodeZen Engine Client Application
+ * CertiFlow — Automated Certificate Verification & Bulk Dispatch Hub
  * Handles Data Upload, CMap Font Extraction, Interactive Matching, Canvas Studio, and Live Dispatch.
  */
 
@@ -52,9 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetPane = document.getElementById(targetId);
       if (targetPane) targetPane.classList.add('active');
 
-      if (targetId === 'tab-studio') {
-        renderCanvas();
-      }
+
     });
   });
 
@@ -1109,91 +1107,6 @@ Warm regards,
 
   // Initial audit table render
   renderAuditTable();
-
-  // =========================================================
-  // TAB 3: CANVAS TYPOGRAPHY STUDIO
-  // =========================================================
-  const canvas = document.getElementById('cert-canvas');
-  const ctx = canvas.getContext('2d');
-  const nameInput = document.getElementById('custom-name');
-  const fontPreset = document.getElementById('font-preset');
-  const fontSizeSlider = document.getElementById('font-size');
-  const sizeVal = document.getElementById('size-val');
-  const fontWeight = document.getElementById('font-weight');
-  const textColor = document.getElementById('text-color');
-  const colorHexLabel = document.getElementById('color-hex-label');
-  const yOffsetSlider = document.getElementById('vertical-offset');
-  const yVal = document.getElementById('y-val');
-  const downloadBtn = document.getElementById('download-cert-btn');
-  const resetBtn = document.getElementById('reset-canvas-btn');
-
-  const bgImage = new Image();
-  bgImage.src = 'assets/certificate_without_name.png';
-  let imageLoaded = false;
-
-  bgImage.onload = () => {
-    imageLoaded = true;
-    renderCanvas();
-  };
-
-  function renderCanvas() {
-    if (!imageLoaded) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-
-    const name = nameInput.value.trim() || 'Your Name Here';
-    const weight = fontWeight.value;
-    const size = fontSizeSlider.value;
-    const family = fontPreset.value;
-    const color = textColor.value;
-    const yPos = parseInt(yOffsetSlider.value, 10);
-
-    ctx.font = `${weight} ${size}px ${family}`;
-    ctx.fillStyle = color;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-
-    const xPos = canvas.width / 2;
-    ctx.fillText(name, xPos, yPos);
-  }
-
-  [nameInput, fontPreset, fontWeight].forEach(el => el.addEventListener('input', renderCanvas));
-
-  fontSizeSlider.addEventListener('input', (e) => {
-    sizeVal.textContent = e.target.value;
-    renderCanvas();
-  });
-
-  yOffsetSlider.addEventListener('input', (e) => {
-    yVal.textContent = e.target.value;
-    renderCanvas();
-  });
-
-  textColor.addEventListener('input', (e) => {
-    colorHexLabel.textContent = e.target.value.toUpperCase();
-    renderCanvas();
-  });
-
-  resetBtn.addEventListener('click', () => {
-    nameInput.value = 'Prabhdeep Singh';
-    fontPreset.value = "'Plus Jakarta Sans', sans-serif";
-    fontWeight.value = '800';
-    fontSizeSlider.value = 34;
-    sizeVal.textContent = '34';
-    textColor.value = '#0a3771';
-    colorHexLabel.textContent = '#0A3771';
-    yOffsetSlider.value = 338;
-    yVal.textContent = '338';
-    renderCanvas();
-  });
-
-  downloadBtn.addEventListener('click', () => {
-    const link = document.createElement('a');
-    const nameSlug = (nameInput.value.trim() || 'Certificate').replace(/\s+/g, '_');
-    link.download = `Certificate_${nameSlug}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  });
 
   // =========================================================
   // UTILITIES & CONFIG
