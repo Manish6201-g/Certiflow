@@ -22,24 +22,79 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Audit Tab State (Preloaded historical data + LocalStorage persistence)
-  let allAuditRecords = [];
-  try {
-    const saved = localStorage.getItem('certiflow_audit_records');
-    if (saved) {
-      allAuditRecords = JSON.parse(saved);
-    }
-  } catch (e) {}
+  // =========================================================
+  // SESSION-BASED DELIVERY AUDIT (Auto-clears on tab close / 20m inactivity)
+  // =========================================================
+  const SESSION_KEY = 'certiflow_session_audit_v2';
+  const SESSION_TTL_MS = 20 * 60 * 1000; // 20 minutes inactivity TTL
 
-  if (!allAuditRecords || allAuditRecords.length === 0) {
+  function loadSessionAuditRecords() {
+    // Purge legacy permanent localStorage
+    try { localStorage.removeItem('certiflow_audit_records'); } catch (e) {}
+
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const payload = JSON.parse(raw);
+        if (payload.timestamp && (Date.now() - payload.timestamp < SESSION_TTL_MS)) {
+          payload.timestamp = Date.now(); // bump activity timer
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+          return payload.records || [];
+        } else {
+          sessionStorage.removeItem(SESSION_KEY);
+        }
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  function saveSessionAuditRecords(records) {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        timestamp: Date.now(),
+        records: records
+      }));
+    } catch (e) {}
+  }
+
+  function clearSessionAudit() {
+    allAuditRecords = [];
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem('certiflow_audit_records');
+    } catch (e) {}
+    refreshHeaderStats();
+    renderAuditTable();
+  }
+
+  function loadDemoAuditData() {
     const auditData = window.CERT_DATA || { participants: [], coordinators: [] };
     allAuditRecords = [
       ...auditData.participants.map(p => ({ ...p, category: 'Participant' })),
       ...auditData.coordinators.map(c => ({ ...c, category: 'Coordinator' }))
     ];
+    saveSessionAuditRecords(allAuditRecords);
+    refreshHeaderStats();
+    renderAuditTable();
   }
+
+  let allAuditRecords = loadSessionAuditRecords();
   let auditFilter = 'all';
   let auditSearchQuery = '';
+
+  // Inactivity auto-expire interval: deletes session data after 20 minutes
+  setInterval(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const payload = JSON.parse(raw);
+        if (payload.timestamp && (Date.now() - payload.timestamp >= SESSION_TTL_MS)) {
+          console.log('Session expired due to inactivity. Auto-clearing audit records.');
+          clearSessionAudit();
+        }
+      }
+    } catch (e) {}
+  }, 30000);
 
   const statTotalEl = document.getElementById('stat-total');
   const statDeliveredEl = document.getElementById('stat-delivered');
@@ -66,12 +121,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (statAccuracyEl) statAccuracyEl.textContent = `${accuracy}%`;
     if (auditTabCountEl) auditTabCountEl.textContent = `${delivered} Delivered`;
 
-    const countAllSpan = document.getElementById('count-all');
-    if (countAllSpan) countAllSpan.textContent = total;
+    // Update filter chip counts
+    const countAll = document.getElementById('count-all');
+    const countPart = document.getElementById('count-participants');
+    const countCoord = document.getElementById('count-coordinators');
+    const countDel = document.getElementById('count-delivered');
+    const countMiss = document.getElementById('count-missing');
 
-    try {
-      localStorage.setItem('certiflow_audit_records', JSON.stringify(allAuditRecords));
-    } catch (e) {}
+    if (countAll) countAll.textContent = total;
+    if (countPart) countPart.textContent = allAuditRecords.filter(r => r.category === 'Participant').length;
+    if (countCoord) countCoord.textContent = allAuditRecords.filter(r => r.category === 'Coordinator').length;
+    if (countDel) countDel.textContent = delivered;
+    if (countMiss) countMiss.textContent = missing;
+
+    // Missing Email Alert Banner
+    const alertBanner = document.getElementById('audit-missing-alert');
+    const alertText = document.getElementById('audit-missing-text');
+    if (alertBanner && alertText) {
+      const missingList = allAuditRecords.filter(r => !r.email || r.status === 'MISSING_EMAIL');
+      if (missingList.length > 0) {
+        alertBanner.style.display = 'flex';
+        const names = missingList.map(r => r.cert_name || r.name).slice(0, 5).join(', ');
+        alertText.innerHTML = `<strong>Action Required on ${missingList.length} Recipients:</strong> Missing email address for: ${escapeHtml(names)}${missingList.length > 5 ? '...' : ''}.`;
+      } else {
+        alertBanner.style.display = 'none';
+      }
+    }
+
+    saveSessionAuditRecords(allAuditRecords);
   }
 
   function recordAuditDelivery(item) {
@@ -89,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (item.cert_name) allAuditRecords[existingIdx].cert_name = item.cert_name;
     } else {
       allAuditRecords.unshift({
-        file: item.file || 'custom_cert.pdf',
+        file: item.file || 'certificate.pdf',
         name: item.name || item.cert_name || 'Recipient',
         cert_name: item.cert_name || item.name || 'Recipient',
         email: item.email || '',
@@ -1153,10 +1230,26 @@ Warm regards,
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'CodeZen_Certificate_Dispatch_Audit.csv';
+    a.download = 'CertiFlow_Delivery_Audit.csv';
     a.click();
     URL.revokeObjectURL(url);
   });
+
+  const clearAuditBtn = document.getElementById('clear-audit-btn');
+  if (clearAuditBtn) {
+    clearAuditBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to clear all audit records for this session?')) {
+        clearSessionAudit();
+      }
+    });
+  }
+
+  const loadSampleAuditBtn = document.getElementById('load-sample-audit-btn');
+  if (loadSampleAuditBtn) {
+    loadSampleAuditBtn.addEventListener('click', () => {
+      loadDemoAuditData();
+    });
+  }
 
   // Modal Inspect
   const inspectModal = document.getElementById('inspect-modal');
