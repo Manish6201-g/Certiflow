@@ -600,21 +600,59 @@ def api_upload_csv():
             'row_count': len(records),
             'columns': headers,
             'detected': BATCH_STATE['detected_cols'],
+            'rows': records,
             'preview': records[:5]
         })
     except Exception as e:
         return jsonify({'error': f'Error parsing CSV: {str(e)}'}), 400
 
+@app.route('/api/extract-names', methods=['POST'])
+@app.route('/extract-names', methods=['POST'])
+def api_extract_names():
+    files = request.files.getlist('pdfs') or request.files.getlist('file') or request.files.getlist('files')
+    if not files:
+        return jsonify({'error': 'No PDF files attached'}), 400
+
+    extracted = []
+    for f in files:
+        fname = f.filename
+        if not fname or not fname.lower().endswith('.pdf'):
+            continue
+        base_n = os.path.basename(fname)
+        target_path = os.path.join(PDF_UPLOAD_DIR, base_n)
+        try:
+            f.save(target_path)
+            extracted_name = extract_name_from_pdf(target_path)
+            extracted.append({
+                'filename': base_n,
+                'name': extracted_name or '',
+                'size': os.path.getsize(target_path)
+            })
+        except Exception as e:
+            extracted.append({
+                'filename': base_n,
+                'name': '',
+                'error': str(e)
+            })
+
+    return jsonify({
+        'status': 'ok',
+        'count': len(extracted),
+        'extracted': extracted
+    })
+
 @app.route('/api/upload-pdfs', methods=['POST'])
 @app.route('/upload-pdfs', methods=['POST'])
 def api_upload_pdfs():
-    files = request.files.getlist('pdfs') or request.files.getlist('file')
+    files = request.files.getlist('pdfs') or request.files.getlist('file') or request.files.getlist('files')
     if not files:
         return jsonify({'error': 'No PDF files attached'}), 400
 
     uploaded = []
     for f in files:
         fname = f.filename
+        if not fname:
+            continue
         if fname.lower().endswith('.zip'):
             zpath = os.path.join(UPLOAD_DIR, fname)
             f.save(zpath)
@@ -635,10 +673,11 @@ def api_upload_pdfs():
             except Exception as e:
                 return jsonify({'error': f'Failed to unzip file: {str(e)}'}), 400
         elif fname.lower().endswith('.pdf'):
-            target_path = os.path.join(PDF_UPLOAD_DIR, fname)
+            base_n = os.path.basename(fname)
+            target_path = os.path.join(PDF_UPLOAD_DIR, base_n)
             f.save(target_path)
             uploaded.append({
-                'filename': fname,
+                'filename': base_n,
                 'path': target_path,
                 'size': os.path.getsize(target_path)
             })
@@ -716,83 +755,131 @@ def api_load_sample():
         'row_count': len(records),
         'pdf_count': len(pdfs),
         'columns': headers,
-        'detected': BATCH_STATE['detected_cols']
+        'detected': BATCH_STATE['detected_cols'],
+        'rows': records
     })
 
 @app.route('/api/match', methods=['POST'])
 @app.route('/match', methods=['POST'])
 def api_match():
-    name_col = request.json.get('name_col') if request.is_json else None
-    email_col = request.json.get('email_col') if request.is_json else None
-    extra_col = request.json.get('extra_col') if request.is_json else None
+    data = request.json or {}
+    name_col = data.get('name_col') or BATCH_STATE['detected_cols'].get('name')
+    email_col = data.get('email_col') or BATCH_STATE['detected_cols'].get('email')
+    extra_col = data.get('extra_col') or BATCH_STATE['detected_cols'].get('extra')
 
-    if not name_col:
-        name_col = BATCH_STATE['detected_cols'].get('name')
-    if not email_col:
-        email_col = BATCH_STATE['detected_cols'].get('email')
-    if not extra_col:
-        extra_col = BATCH_STATE['detected_cols'].get('extra')
-
-    csv_rows = BATCH_STATE['csv_rows']
-    pdf_files = BATCH_STATE['pdf_files']
+    csv_rows = data.get('csv_rows') or BATCH_STATE['csv_rows']
+    extracted_items = data.get('extracted_items')
 
     if not csv_rows:
         return jsonify({'error': 'No CSV spreadsheet loaded'}), 400
-    if not pdf_files:
-        return jsonify({'error': 'No PDF certificates uploaded'}), 400
 
     results = []
     matched_sheet_rows = set()
 
-    for idx, pdf in enumerate(pdf_files):
-        pdf_path = pdf['path']
-        fname = pdf['filename']
-        extracted = extract_name_from_pdf(pdf_path)
+    if extracted_items:
+        for idx, item in enumerate(extracted_items):
+            fname = item.get('filename') or f"cert_{idx+1}.pdf"
+            extracted = item.get('name', '').strip()
+            pdf_path = item.get('path', '')
 
-        matched_row, conf, m_type, reason = match_extracted_name(
-            extracted_name=extracted,
-            csv_rows=csv_rows,
-            name_col=name_col,
-            email_col=email_col,
-            extra_col=extra_col
-        )
+            matched_row, conf, m_type, reason = match_extracted_name(
+                extracted_name=extracted,
+                csv_rows=csv_rows,
+                name_col=name_col,
+                email_col=email_col,
+                extra_col=extra_col
+            )
 
-        email = ""
-        sheet_name = ""
-        extra_val = ""
-        match_status = "MATCHED"
+            email = ""
+            sheet_name = ""
+            extra_val = ""
+            match_status = "MATCHED"
 
-        if matched_row:
-            sheet_name = matched_row.get(name_col, '')
-            email = matched_row.get(email_col, '').strip()
-            extra_val = matched_row.get(extra_col, '').strip()
-            row_id = id(matched_row)
-            matched_sheet_rows.add(row_id)
+            if matched_row:
+                sheet_name = matched_row.get(name_col, '')
+                email = matched_row.get(email_col, '').strip()
+                extra_val = matched_row.get(extra_col, '').strip()
+                row_id = id(matched_row)
+                matched_sheet_rows.add(row_id)
 
-            if not email:
-                match_status = "MISSING_EMAIL"
-            elif m_type == 'AMBIGUOUS':
-                match_status = "AMBIGUOUS"
-            elif m_type == 'FUZZY':
-                match_status = "FUZZY_MATCH"
-        else:
-            match_status = "UNMATCHED"
+                if not email:
+                    match_status = "MISSING_EMAIL"
+                elif m_type == 'AMBIGUOUS':
+                    match_status = "AMBIGUOUS"
+                elif m_type == 'FUZZY':
+                    match_status = "FUZZY_MATCH"
+            else:
+                match_status = "UNMATCHED"
 
-        results.append({
-            'id': idx + 1,
-            'pdf_file': fname,
-            'pdf_path': pdf_path,
-            'cert_name': extracted,
-            'sheet_name': sheet_name,
-            'email': email,
-            'extra': extra_val,
-            'confidence': conf,
-            'match_type': m_type,
-            'match_status': match_status,
-            'reason': reason,
-            'included': match_status != 'UNMATCHED' and bool(email),
-            'delivery_status': 'PENDING'
-        })
+            results.append({
+                'id': idx + 1,
+                'pdf_file': fname,
+                'pdf_path': pdf_path,
+                'cert_name': extracted,
+                'sheet_name': sheet_name,
+                'email': email,
+                'extra': extra_val,
+                'confidence': conf,
+                'match_type': m_type,
+                'match_status': match_status,
+                'reason': reason,
+                'included': match_status != 'UNMATCHED' and bool(email),
+                'delivery_status': 'PENDING'
+            })
+    else:
+        pdf_files = BATCH_STATE['pdf_files']
+        if not pdf_files:
+            return jsonify({'error': 'No PDF certificates uploaded'}), 400
+
+        for idx, pdf in enumerate(pdf_files):
+            pdf_path = pdf['path']
+            fname = pdf['filename']
+            extracted = extract_name_from_pdf(pdf_path)
+
+            matched_row, conf, m_type, reason = match_extracted_name(
+                extracted_name=extracted,
+                csv_rows=csv_rows,
+                name_col=name_col,
+                email_col=email_col,
+                extra_col=extra_col
+            )
+
+            email = ""
+            sheet_name = ""
+            extra_val = ""
+            match_status = "MATCHED"
+
+            if matched_row:
+                sheet_name = matched_row.get(name_col, '')
+                email = matched_row.get(email_col, '').strip()
+                extra_val = matched_row.get(extra_col, '').strip()
+                row_id = id(matched_row)
+                matched_sheet_rows.add(row_id)
+
+                if not email:
+                    match_status = "MISSING_EMAIL"
+                elif m_type == 'AMBIGUOUS':
+                    match_status = "AMBIGUOUS"
+                elif m_type == 'FUZZY':
+                    match_status = "FUZZY_MATCH"
+            else:
+                match_status = "UNMATCHED"
+
+            results.append({
+                'id': idx + 1,
+                'pdf_file': fname,
+                'pdf_path': pdf_path,
+                'cert_name': extracted,
+                'sheet_name': sheet_name,
+                'email': email,
+                'extra': extra_val,
+                'confidence': conf,
+                'match_type': m_type,
+                'match_status': match_status,
+                'reason': reason,
+                'included': match_status != 'UNMATCHED' and bool(email),
+                'delivery_status': 'PENDING'
+            })
 
     BATCH_STATE['matched_records'] = results
 
@@ -912,6 +999,87 @@ def api_send_test():
         })
     except Exception as e:
         return jsonify({'error': f"Failed to send test email: {str(e)}"}), 500
+
+@app.route('/api/send-single', methods=['POST'])
+@app.route('/send-single', methods=['POST'])
+def api_send_single():
+    creds = load_env_creds()
+    sender_email = request.form.get('gmail_user') or creds.get('GMAIL_USER')
+    app_password = request.form.get('gmail_password') or creds.get('GMAIL_APP_PASSWORD')
+    sender_name = request.form.get('sender_name') or creds.get('DEFAULT_SENDER_NAME', 'CodeZen Club')
+    regards = request.form.get('regards') or creds.get('DEFAULT_REGARDS', 'CodeZen Club')
+
+    if not sender_email or not app_password:
+        return jsonify({'error': 'Gmail credentials not configured. Please check SMTP settings.'}), 400
+
+    recipient_email = request.form.get('recipient_email', '').strip()
+    recipient_name = request.form.get('recipient_name', '').strip()
+    subject = request.form.get('subject', 'Certificate of Participation')
+    body = request.form.get('body', '')
+
+    if not recipient_email:
+        return jsonify({'error': 'Missing recipient email'}), 400
+
+    pdf_bytes = None
+    clean_name = f"Certificate_{re.sub(r'[^a-zA-Z0-9_]', '_', recipient_name or 'Recipient')}.pdf"
+
+    if 'pdf' in request.files or 'file' in request.files:
+        f = request.files.get('pdf') or request.files.get('file')
+        pdf_bytes = f.read()
+    else:
+        pdf_filename = request.form.get('filename')
+        if pdf_filename:
+            local_p = os.path.join(PDF_UPLOAD_DIR, os.path.basename(pdf_filename))
+            if os.path.exists(local_p):
+                with open(local_p, 'rb') as f:
+                    pdf_bytes = f.read()
+
+    if not pdf_bytes:
+        return jsonify({'error': 'No PDF attachment found for this recipient'}), 400
+
+    tokens = {
+        'name': recipient_name,
+        'email': recipient_email,
+        'regards': regards,
+        'sender': sender_name
+    }
+
+    fmt_subj = subject
+    for k, v in tokens.items():
+        fmt_subj = re.sub(f'\\{{{k}\\}}', str(v), fmt_subj, flags=re.IGNORECASE)
+
+    fmt_body = body
+    for k, v in tokens.items():
+        fmt_body = re.sub(f'\\{{{k}\\}}', str(v), fmt_body, flags=re.IGNORECASE)
+
+    if regards and regards not in fmt_body:
+        fmt_body += f"\n\nWarm regards,\n{regards}"
+
+    msg = MIMEMultipart()
+    from_header = f"{sender_name} <{sender_email}>" if sender_name else sender_email
+    msg['From'] = from_header
+    msg['To'] = recipient_email
+    msg['Subject'] = fmt_subj
+    msg.attach(MIMEText(fmt_body, 'plain'))
+
+    part = MIMEApplication(pdf_bytes, Name=clean_name)
+    part['Content-Disposition'] = f'attachment; filename="{clean_name}"'
+    msg.attach(part)
+
+    try:
+        clean_pwd = re.sub(r'\s+', '', app_password)
+        with smtplib.SMTP('smtp.gmail.com', 587, timeout=20) as server:
+            server.starttls()
+            server.login(sender_email, clean_pwd)
+            server.send_message(msg)
+
+        return jsonify({
+            'status': 'ok',
+            'recipient': recipient_email,
+            'name': recipient_name
+        })
+    except Exception as e:
+        return jsonify({'error': f'SMTP Error: {str(e)}'}), 500
 
 @app.route('/api/dispatch', methods=['POST'])
 @app.route('/dispatch', methods=['POST'])

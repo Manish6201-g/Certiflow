@@ -224,43 +224,87 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     pdfDropzone.classList.remove('dragover');
     if (e.dataTransfer.files.length) {
-      uploadPdfFiles(e.dataTransfer.files);
+      handlePdfFilesSelection(e.dataTransfer.files);
     }
   });
 
+  let localPdfFiles = []; // [{ filename, file, size }]
+  let localFileMap = new Map(); // filename -> File
+
   pdfFileInput.addEventListener('change', (e) => {
     if (e.target.files.length) {
-      uploadPdfFiles(e.target.files);
+      handlePdfFilesSelection(e.target.files);
     }
   });
 
   document.getElementById('mount-participant-pdfs').addEventListener('click', () => loadSample('participants'));
   document.getElementById('mount-coordinator-pdfs').addEventListener('click', () => loadSample('coordinators'));
 
-  async function uploadPdfFiles(fileList) {
-    const fd = new FormData();
+  async function handlePdfFilesSelection(fileList) {
+    step2Badge.textContent = 'Reading files...';
+    const collectedFiles = [];
+
     for (let i = 0; i < fileList.length; i++) {
-      fd.append('pdfs', fileList[i]);
+      const f = fileList[i];
+      const lowerName = f.name.toLowerCase();
+
+      if (lowerName.endsWith('.zip')) {
+        if (window.JSZip) {
+          step2Badge.textContent = 'Extracting ZIP...';
+          try {
+            const zip = await JSZip.loadAsync(f);
+            const entries = Object.keys(zip.files);
+            for (const relPath of entries) {
+              const zipEntry = zip.files[relPath];
+              if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.pdf') && !zipEntry.name.startsWith('__MACOSX')) {
+                const blob = await zipEntry.async('blob');
+                const cleanName = relPath.split('/').pop();
+                if (cleanName) {
+                  const unzippedFile = new File([blob], cleanName, { type: 'application/pdf' });
+                  collectedFiles.push(unzippedFile);
+                }
+              }
+            }
+          } catch (zipErr) {
+            console.error('ZIP extraction error:', zipErr);
+            alert(`Error extracting ZIP archive: ${zipErr.message}`);
+          }
+        } else {
+          alert('JSZip library not ready. Please select individual PDF files.');
+        }
+      } else if (lowerName.endsWith('.pdf')) {
+        collectedFiles.push(f);
+      }
     }
-    try {
-      step2Badge.textContent = 'Processing PDFs...';
-      const res = await fetch('/api/upload-pdfs', {
-        method: 'POST',
-        body: fd
-      });
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.error || 'Failed to upload PDFs');
-      onPdfsUploaded(data.file_count);
-    } catch (err) {
-      alert(`Error uploading PDFs: ${err.message}`);
-      step2Badge.textContent = 'Upload Failed';
+
+    if (collectedFiles.length === 0) {
+      alert('No PDF files found in the selected files.');
+      step2Badge.textContent = 'No PDFs Found';
+      return;
     }
+
+    for (const f of collectedFiles) {
+      localFileMap.set(f.name, f);
+      const existingIdx = localPdfFiles.findIndex(item => item.filename === f.name);
+      const entry = {
+        filename: f.name,
+        file: f,
+        size: f.size
+      };
+      if (existingIdx >= 0) {
+        localPdfFiles[existingIdx] = entry;
+      } else {
+        localPdfFiles.push(entry);
+      }
+    }
+
+    onPdfsUploaded(localPdfFiles.length);
   }
 
   function onPdfsUploaded(count) {
     pdfFileCountSpan.textContent = count;
     pdfSummaryPill.style.display = 'block';
-    step2Badge.textContent = `${count} Files Mounted`;
+    step2Badge.textContent = `${count} PDFs Ready`;
     step2Badge.classList.add('ready');
   }
 
@@ -277,6 +321,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const readyToSendText = document.getElementById('ready-to-send-text');
 
   runMatchBtn.addEventListener('click', async () => {
+    if (!currentCsvData || !currentCsvData.rows || currentCsvData.rows.length === 0) {
+      alert('Please upload or load a spreadsheet first in Step 1.');
+      return;
+    }
+
+    const hasLocalPdfs = localPdfFiles.length > 0;
+    const presetCount = parseInt(pdfFileCountSpan.textContent, 10) || 0;
+
+    if (!hasLocalPdfs && presetCount === 0) {
+      alert('Please upload your PDF certificates in Step 2 first.');
+      return;
+    }
+
     runMatchBtn.disabled = true;
     runMatchBtn.innerHTML = `
       <svg class="spin-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/></svg>
@@ -284,13 +341,44 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     try {
+      let extractedItems = [];
+
+      if (hasLocalPdfs) {
+        // Safe chunked font extraction: 2 PDFs per request (under 2MB, never hits Vercel 4.5MB limit)
+        const CHUNK_SIZE = 2;
+        const total = localPdfFiles.length;
+
+        for (let i = 0; i < total; i += CHUNK_SIZE) {
+          const chunk = localPdfFiles.slice(i, i + CHUNK_SIZE);
+          const fd = new FormData();
+          for (const item of chunk) {
+            fd.append('pdfs', item.file);
+          }
+
+          step2Badge.textContent = `Analyzing ${Math.min(i + CHUNK_SIZE, total)} / ${total}...`;
+
+          const extRes = await fetch('/api/extract-names', {
+            method: 'POST',
+            body: fd
+          });
+          const extData = await safeJson(extRes);
+          if (extData.extracted && extData.extracted.length) {
+            extractedItems.push(...extData.extracted);
+          }
+        }
+        step2Badge.textContent = `${total} PDFs Analyzed`;
+      }
+
+      // Stateless Cross-Match
       const res = await fetch('/api/match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name_col: mapNameCol.value,
           email_col: mapEmailCol.value,
-          extra_col: mapExtraCol.value
+          extra_col: mapExtraCol.value,
+          csv_rows: currentCsvData ? currentCsvData.rows : null,
+          extracted_items: extractedItems.length > 0 ? extractedItems : null
         })
       });
       const data = await safeJson(res);
@@ -584,39 +672,44 @@ Warm regards,
       return;
     }
 
-    try {
-      btnDispatchAll.disabled = true;
-      btnDispatchAll.textContent = 'Dispatching in Progress...';
-      document.getElementById('dispatch-hud-card').style.display = 'block';
-      document.getElementById('dispatch-hud-card').scrollIntoView({ behavior: 'smooth' });
+    btnDispatchAll.disabled = true;
+    btnDispatchAll.textContent = 'Dispatching in Progress...';
+    document.getElementById('dispatch-hud-card').style.display = 'block';
+    document.getElementById('dispatch-hud-card').scrollIntoView({ behavior: 'smooth' });
 
-      const res = await fetch('/api/dispatch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gmail_user: gmailSenderInput.value.trim(),
-          gmail_password: gmailPasswordInput.value.trim(),
-          sender_name: senderNameInput.value.trim(),
-          subject: emailSubjectInput.value.trim(),
-          body: emailBodyInput.value.trim(),
-          regards: regardsInput.value.trim(),
-          delay: 1.0
-        })
-      });
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.error || 'Failed to start dispatch');
+    // Client-side dispatch: handles single-file attachments cleanly without serverless timeouts
+    if (localFileMap.size > 0) {
+      runClientSideDispatch(active);
+    } else {
+      try {
+        const res = await fetch('/api/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            gmail_user: gmailSenderInput.value.trim(),
+            gmail_password: gmailPasswordInput.value.trim(),
+            sender_name: senderNameInput.value.trim(),
+            subject: emailSubjectInput.value.trim(),
+            body: emailBodyInput.value.trim(),
+            regards: regardsInput.value.trim(),
+            delay: 1.0
+          })
+        });
+        const data = await safeJson(res);
+        if (!res.ok) throw new Error(data.error || 'Failed to start dispatch');
 
-      // Start polling dispatch status
-      startDispatchPolling();
-    } catch (err) {
-      alert(`Dispatch error: ${err.message}`);
-      btnDispatchAll.disabled = false;
-      btnDispatchAll.textContent = '🚀 Dispatch All Verified Certificates';
+        // Start polling dispatch status
+        startDispatchPolling();
+      } catch (err) {
+        alert(`Dispatch error: ${err.message}`);
+        btnDispatchAll.disabled = false;
+        btnDispatchAll.textContent = '🚀 Dispatch All Verified Certificates';
+      }
     }
   });
 
   // =========================================================
-  // STEP 5: LIVE DISPATCH HUD & POLLING
+  // STEP 5: LIVE DISPATCH HUD & CLIENT-SIDE OR SERVER WORKER
   // =========================================================
   const hudProgressFill = document.getElementById('hud-progress-fill');
   const hudPctText = document.getElementById('hud-pct-text');
@@ -628,6 +721,117 @@ Warm regards,
   const hudConsole = document.getElementById('hud-console');
   const hudPauseBtn = document.getElementById('hud-pause-btn');
   const hudAbortBtn = document.getElementById('hud-abort-btn');
+
+  let clientDispatchState = {
+    isRunning: false,
+    isPaused: false,
+    shouldAbort: false
+  };
+
+  async function runClientSideDispatch(records) {
+    clientDispatchState.isRunning = true;
+    clientDispatchState.isPaused = false;
+    clientDispatchState.shouldAbort = false;
+
+    hudPauseBtn.textContent = '⏸️ Pause';
+    hudConsole.innerHTML = '';
+
+    const total = records.length;
+    let successCount = 0;
+    let failCount = 0;
+
+    hudTotalNum.textContent = total;
+    hudCurrentNum.textContent = 0;
+    hudProgressFill.style.width = '0%';
+    hudPctText.textContent = '0%';
+    hudStatDelivered.textContent = 0;
+    hudStatSkipped.textContent = 0;
+    hudStatFailed.textContent = 0;
+
+    appendConsoleLog('system', `Starting dispatch of ${total} certificates via Gmail SMTP...`);
+
+    for (let i = 0; i < total; i++) {
+      if (clientDispatchState.shouldAbort) {
+        appendConsoleLog('system', 'Dispatch aborted by user.');
+        break;
+      }
+
+      while (clientDispatchState.isPaused) {
+        await new Promise(r => setTimeout(r, 200));
+        if (clientDispatchState.shouldAbort) break;
+      }
+      if (clientDispatchState.shouldAbort) break;
+
+      const rec = records[i];
+      const recipientName = rec.cert_name || rec.sheet_name;
+      const recipientEmail = rec.email;
+      const localFile = localFileMap.get(rec.pdf_file);
+
+      const fd = new FormData();
+      fd.append('recipient_email', recipientEmail);
+      fd.append('recipient_name', recipientName);
+      fd.append('subject', emailSubjectInput.value.trim());
+      fd.append('body', emailBodyInput.value.trim());
+      fd.append('regards', regardsInput.value.trim());
+      fd.append('sender_name', senderNameInput.value.trim());
+      fd.append('gmail_user', gmailSenderInput.value.trim());
+      fd.append('gmail_password', gmailPasswordInput.value.trim());
+
+      if (localFile) {
+        fd.append('pdf', localFile);
+      } else {
+        fd.append('filename', rec.pdf_file);
+      }
+
+      try {
+        const res = await fetch('/api/send-single', {
+          method: 'POST',
+          body: fd
+        });
+        const result = await safeJson(res);
+        if (!res.ok) throw new Error(result.error || 'Failed to send email');
+
+        successCount++;
+        rec.delivery_status = 'DELIVERED';
+        appendConsoleLog('success', `Delivered to ${recipientEmail} (${recipientName}) — ${rec.pdf_file}`);
+      } catch (err) {
+        failCount++;
+        rec.delivery_status = 'FAILED';
+        appendConsoleLog('error', `Failed for ${recipientEmail}: ${err.message}`);
+      }
+
+      const currentIdx = i + 1;
+      const pct = Math.round((currentIdx / total) * 100);
+
+      hudCurrentNum.textContent = currentIdx;
+      hudPctText.textContent = `${pct}%`;
+      hudProgressFill.style.width = `${pct}%`;
+      hudStatDelivered.textContent = successCount;
+      hudStatFailed.textContent = failCount;
+
+      // Polite rate limit delay between emails (1.0 second)
+      if (i < total - 1) {
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+
+    clientDispatchState.isRunning = false;
+    btnDispatchAll.disabled = false;
+    btnDispatchAll.textContent = clientDispatchState.shouldAbort ? '🚀 Dispatch Stopped' : '🚀 Dispatch Complete!';
+    appendConsoleLog('system', `Dispatch finished. Delivered: ${successCount}, Failed: ${failCount}.`);
+  }
+
+  function appendConsoleLog(type, text) {
+    const timeStr = new Date().toLocaleTimeString();
+    const entry = document.createElement('div');
+    entry.className = 'console-entry';
+    entry.innerHTML = `
+      <span class="console-time">[${timeStr}]</span>
+      <span class="console-msg ${type}">${escapeHtml(text)}</span>
+    `;
+    hudConsole.appendChild(entry);
+    hudConsole.scrollTop = hudConsole.scrollHeight;
+  }
 
   function startDispatchPolling() {
     if (dispatchPollTimer) clearInterval(dispatchPollTimer);
@@ -672,6 +876,12 @@ Warm regards,
   }
 
   hudPauseBtn.addEventListener('click', async () => {
+    if (clientDispatchState.isRunning) {
+      clientDispatchState.isPaused = !clientDispatchState.isPaused;
+      hudPauseBtn.textContent = clientDispatchState.isPaused ? '▶️ Resume' : '⏸️ Pause';
+      appendConsoleLog('system', clientDispatchState.isPaused ? 'Dispatch paused.' : 'Dispatch resumed.');
+      return;
+    }
     const isPaused = hudPauseBtn.textContent.includes('Resume');
     await fetch('/api/dispatch-control', {
       method: 'POST',
@@ -682,6 +892,10 @@ Warm regards,
 
   hudAbortBtn.addEventListener('click', async () => {
     if (confirm('Are you sure you want to stop the dispatch process?')) {
+      if (clientDispatchState.isRunning) {
+        clientDispatchState.shouldAbort = true;
+        return;
+      }
       await fetch('/api/dispatch-control', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -703,7 +917,12 @@ Warm regards,
 
   function openPdfPreviewModal(filename) {
     pdfModalTitle.textContent = `Certificate Preview: ${filename}`;
-    pdfModalIframe.src = `/api/preview-pdf/${filename}`;
+    const localFile = localFileMap.get(filename);
+    if (localFile) {
+      pdfModalIframe.src = URL.createObjectURL(localFile);
+    } else {
+      pdfModalIframe.src = `/api/preview-pdf/${encodeURIComponent(filename)}`;
+    }
     pdfModal.style.display = 'flex';
     pdfModal.setAttribute('aria-hidden', 'false');
   }
