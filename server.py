@@ -773,6 +773,21 @@ def api_match():
     if not csv_rows:
         return jsonify({'error': 'No CSV spreadsheet loaded'}), 400
 
+    if csv_rows and (not name_col or not email_col):
+        headers = list(csv_rows[0].keys())
+        for h in headers:
+            lh = h.lower()
+            if not name_col and any(k in lh for k in ['name', 'participant', 'coordinator', 'student']):
+                name_col = h
+            elif not email_col and any(k in lh for k in ['email', 'mail']):
+                email_col = h
+            elif not extra_col and any(k in lh for k in ['roll', 'duty', 'id', 'department', 'section']):
+                extra_col = h
+        if not name_col and headers:
+            name_col = headers[0]
+        if not email_col and len(headers) > 1:
+            email_col = headers[1]
+
     results = []
     matched_sheet_rows = set()
 
