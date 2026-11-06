@@ -2,6 +2,7 @@
 """
 CertiFlow Backend Server
 Automated Certificate Sorting, PDF Name Extraction, Fuzzy Matching, and Gmail SMTP Dispatch Hub.
+Optimized for local standalone execution and cloud serverless deployment (Vercel / Lambda).
 """
 
 import os
@@ -25,48 +26,37 @@ from flask import Flask, request, jsonify, send_from_directory, send_file, Respo
 from flask_cors import CORS
 import pypdf
 
-# Paths
+# Environment Detection (Local vs Serverless / Vercel)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = BASE_DIR
-ENV_PATH = os.path.join(BASE_DIR, '.env') if os.path.exists(os.path.join(BASE_DIR, '.env')) else os.path.join(os.path.dirname(BASE_DIR), '.env')
-UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
-PDF_UPLOAD_DIR = os.path.join(UPLOAD_DIR, 'pdfs')
-CSV_UPLOAD_DIR = os.path.join(UPLOAD_DIR, 'csvs')
-LOGS_DIR = os.path.join(UPLOAD_DIR, 'logs')
+IS_VERCEL = bool(os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or os.path.exists('/var/task'))
+
+# On Vercel / serverless, filesystem is read-only except /tmp
+if IS_VERCEL:
+    TMP_ROOT = '/tmp'
+    UPLOAD_DIR = os.path.join(TMP_ROOT, 'uploads')
+    PDF_UPLOAD_DIR = os.path.join(UPLOAD_DIR, 'pdfs')
+    CSV_UPLOAD_DIR = os.path.join(UPLOAD_DIR, 'csvs')
+    LOGS_DIR = os.path.join(UPLOAD_DIR, 'logs')
+    ENV_PATH = '/tmp/.env'
+else:
+    UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
+    PDF_UPLOAD_DIR = os.path.join(UPLOAD_DIR, 'pdfs')
+    CSV_UPLOAD_DIR = os.path.join(UPLOAD_DIR, 'csvs')
+    LOGS_DIR = os.path.join(UPLOAD_DIR, 'logs')
+    ENV_PATH = os.path.join(BASE_DIR, '.env') if os.path.exists(os.path.join(BASE_DIR, '.env')) else os.path.join(os.path.dirname(BASE_DIR), '.env')
+
 SAMPLE_DIR = os.path.join(BASE_DIR, 'sample_data')
 
-for d in [UPLOAD_DIR, PDF_UPLOAD_DIR, CSV_UPLOAD_DIR, LOGS_DIR, SAMPLE_DIR]:
-    os.makedirs(d, exist_ok=True)
+# Safely initialize directories (never crash if read-only)
+for d in [UPLOAD_DIR, PDF_UPLOAD_DIR, CSV_UPLOAD_DIR, LOGS_DIR]:
+    try:
+        os.makedirs(d, exist_ok=True)
+    except Exception:
+        pass
 
 app = Flask(__name__, static_folder=BASE_DIR, static_url_path='')
 CORS(app)
-
-def is_static_phrase(text):
-    low = text.lower()
-    for phrase in KNOWN_STATIC_PHRASES:
-        if re.search(r'\b' + re.escape(phrase) + r'\b', low):
-            return True
-    return False
-BATCH_STATE = {
-    'csv_rows': [],
-    'columns': [],
-    'detected_cols': {'name': '', 'email': '', 'extra': ''},
-    'pdf_files': [], # list of {filename, path, size}
-    'matched_records': [], # current matched list
-    'dispatch': {
-        'is_running': False,
-        'is_paused': False,
-        'should_abort': False,
-        'current_index': 0,
-        'total': 0,
-        'success_count': 0,
-        'skip_count': 0,
-        'fail_count': 0,
-        'logs': [],
-        'start_time': None,
-        'completed_time': None
-    }
-}
 
 KNOWN_STATIC_PHRASES = {
     'dr. ashwani', 'ashwani k. sharma', 'ashwani sharma',
@@ -82,31 +72,79 @@ KNOWN_STATIC_PHRASES = {
     'head of department', 'principal', 'director', 'presented to', 'in recognition'
 }
 
-def load_env_creds():
-    creds = {
-        'GMAIL_USER': 'manish001yadav0@gmail.com',
-        'GMAIL_APP_PASSWORD': '',
-        'DEFAULT_SENDER_NAME': 'CodeZen Club',
-        'DEFAULT_REGARDS': 'CodeZen Club'
+def is_static_phrase(text):
+    low = text.lower()
+    for phrase in KNOWN_STATIC_PHRASES:
+        if re.search(r'\b' + re.escape(phrase) + r'\b', low):
+            return True
+    return False
+
+# Global State for active batch & dispatch
+BATCH_STATE = {
+    'csv_rows': [],
+    'columns': [],
+    'detected_cols': {'name': '', 'email': '', 'extra': ''},
+    'pdf_files': [],
+    'matched_records': [],
+    'dispatch': {
+        'is_running': False,
+        'is_paused': False,
+        'should_abort': False,
+        'current_index': 0,
+        'total': 0,
+        'success_count': 0,
+        'skip_count': 0,
+        'fail_count': 0,
+        'logs': [],
+        'start_time': None,
+        'completed_time': None
     }
-    if os.path.exists(ENV_PATH):
-        with open(ENV_PATH, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    k, v = line.split('=', 1)
-                    creds[k.strip()] = v.strip()
+}
+
+def load_env_creds():
+    # 1. First priority: Environment Variables (e.g. from Vercel Project Settings)
+    creds = {
+        'GMAIL_USER': os.environ.get('GMAIL_USER', 'manish001yadav0@gmail.com'),
+        'GMAIL_APP_PASSWORD': os.environ.get('GMAIL_APP_PASSWORD', ''),
+        'DEFAULT_SENDER_NAME': os.environ.get('DEFAULT_SENDER_NAME', 'CodeZen Club'),
+        'DEFAULT_REGARDS': os.environ.get('DEFAULT_REGARDS', 'CodeZen Club')
+    }
+
+    # 2. Check local disk .env files
+    env_paths = [
+        ENV_PATH,
+        '/tmp/.env',
+        os.path.join(BASE_DIR, '.env'),
+        os.path.join(os.path.dirname(BASE_DIR), '.env')
+    ]
+    for p in env_paths:
+        if os.path.exists(p):
+            try:
+                with open(p, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            k, v = line.split('=', 1)
+                            # Only set if not already provided by real environment variables
+                            if not creds.get(k.strip()):
+                                creds[k.strip()] = v.strip()
+                break
+            except Exception:
+                pass
     return creds
 
 def save_env_creds(user, app_password, sender_name='CodeZen Club', regards='CodeZen Club'):
-    lines = [
-        f"GMAIL_USER={user}\n",
-        f"GMAIL_APP_PASSWORD={app_password}\n",
-        f"DEFAULT_SENDER_NAME={sender_name}\n",
-        f"DEFAULT_REGARDS={regards}\n"
-    ]
-    with open(ENV_PATH, 'w') as f:
-        f.writelines(lines)
+    os.environ['GMAIL_USER'] = user
+    os.environ['GMAIL_APP_PASSWORD'] = app_password
+    os.environ['DEFAULT_SENDER_NAME'] = sender_name
+    os.environ['DEFAULT_REGARDS'] = regards
+
+    target = '/tmp/.env' if IS_VERCEL else ENV_PATH
+    try:
+        with open(target, 'w') as f:
+            f.write(f"GMAIL_USER={user}\nGMAIL_APP_PASSWORD={app_password}\nDEFAULT_SENDER_NAME={sender_name}\nDEFAULT_REGARDS={regards}\n")
+    except Exception as e:
+        print(f"Notice: Could not write .env to disk ({e}), credentials kept in memory.")
 
 # -------------------------------------------------------------
 # Dual-Layer PDF Name Extraction Engine
@@ -124,7 +162,6 @@ def extract_name_from_pdf(pdf_path):
             text = page.extract_text()
             if text:
                 lines = [l.strip() for l in text.splitlines() if l.strip()]
-                # Check candidate lines from bottom up
                 for line in reversed(lines):
                     clean = re.sub(r'[^a-zA-Z\s\.]', '', line).strip()
                     if not clean or len(clean) < 3 or len(clean) > 45:
@@ -162,7 +199,6 @@ def extract_name_from_pdf(pdf_path):
 
             if b'BT' in dec and b'ET' in dec:
                 for b in re.findall(rb'BT\r?\n(.*?)\r?\nET', dec, re.DOTALL):
-                    # Check for font size usually reserved for recipient names
                     if any(sz in b for sz in [b'24.0000', b'22.0000', b'20.0000', b'26.0000', b'28.0000', b'18.0000']):
                         hexes = re.findall(rb'<([0-9A-Fa-f]+)>', b)
                         for cmap in cmaps.values():
@@ -185,27 +221,16 @@ def extract_name_from_pdf(pdf_path):
 def normalize_name(name):
     if not name:
         return ""
-    # strip honorifics and non-alpha
     clean = re.sub(r'^(mr\.|ms\.|mrs\.|dr\.|prof\.)\s+', '', name.strip(), flags=re.IGNORECASE)
     clean = re.sub(r'[^a-zA-Z\s]', '', clean).lower()
     return ' '.join(clean.split())
 
 def match_extracted_name(extracted_name, csv_rows, name_col, email_col, extra_col):
-    """
-    Finds the best matching CSV row for a given extracted certificate name.
-    Returns: (matched_row, confidence, match_type, reason)
-    """
     norm_ext = normalize_name(extracted_name)
     if not norm_ext:
         return None, 0.0, 'UNMATCHED', 'Name could not be extracted from PDF'
 
     ext_tokens = set(norm_ext.split())
-
-    best_row = None
-    best_score = 0.0
-    best_type = 'UNMATCHED'
-    best_reason = 'No suitable match found in sheet'
-
     candidates = []
 
     for row in csv_rows:
@@ -220,7 +245,7 @@ def match_extracted_name(extracted_name, csv_rows, name_col, email_col, extra_co
         if norm_ext == norm_sheet:
             return row, 1.0, 'EXACT', 'Exact 100% name match'
 
-        # Token set match (e.g. Kumar Shivam vs Shivam Kumar, or middle names)
+        # Token set match
         if ext_tokens == sheet_tokens:
             candidates.append((row, 0.98, 'TOKEN_EXACT', 'Tokens match exactly'))
             continue
@@ -236,10 +261,8 @@ def match_extracted_name(extracted_name, csv_rows, name_col, email_col, extra_co
             candidates.append((row, round(ratio, 2), 'FUZZY', f'Fuzzy similarity {int(ratio*100)}%'))
 
     if candidates:
-        # Sort by highest score
         candidates.sort(key=lambda x: x[1], reverse=True)
         top_row, top_score, top_type, top_reason = candidates[0]
-        # Check if ambiguous (e.g. two candidates with very close score)
         if len(candidates) > 1 and candidates[0][1] == candidates[1][1]:
             top_type = 'AMBIGUOUS'
             top_reason = 'Multiple rows in sheet match this name with equal confidence'
@@ -259,7 +282,6 @@ def build_email_message(sender_email, sender_name, recipient_email, recipient_na
     msg['From'] = from_header
     msg['To'] = recipient_email
 
-    # Format subject and body with tokens
     tokens = {
         'name': recipient_name,
         'email': recipient_email,
@@ -277,13 +299,11 @@ def build_email_message(sender_email, sender_name, recipient_email, recipient_na
     for k, v in tokens.items():
         formatted_body = re.sub(f'\\{{{k}\\}}', str(v), formatted_body, flags=re.IGNORECASE)
 
-    # If body doesn't end with regards and regards is provided
     if regards and regards not in formatted_body:
         formatted_body += f"\n\nWarm regards,\n{regards}"
 
     msg.attach(MIMEText(formatted_body, 'plain'))
 
-    # Attach PDF certificate
     clean_name = f"Certificate_{re.sub(r'[^a-zA-Z0-9_]', '_', recipient_name)}.pdf"
     with open(pdf_path, 'rb') as f:
         part = MIMEApplication(f.read(), Name=clean_name)
@@ -355,7 +375,6 @@ def dispatch_worker(sender_email, app_password, sender_name, subject, body, rega
             r['delivery_status'] = 'FAILED_MISSING_FILE'
             continue
 
-        # Send email
         retries = 2
         sent_ok = False
         while retries > 0 and not sent_ok:
@@ -410,15 +429,17 @@ def dispatch_worker(sender_email, app_password, sender_name, subject, body, rega
     state['completed_time'] = time.strftime('%Y-%m-%d %H:%M:%S')
     add_log('info', f"Dispatch finished! Delivered: {state['success_count']}, Skipped: {state['skip_count']}, Failed: {state['fail_count']}")
 
-    # Save to disk log
-    log_file = os.path.join(LOGS_DIR, f"dispatch_{int(time.time())}.json")
-    with open(log_file, 'w') as f:
-        json.dump({
-            'start_time': state['start_time'],
-            'completed_time': state['completed_time'],
-            'total_delivered': state['success_count'],
-            'records': records
-        }, f, indent=2)
+    try:
+        log_file = os.path.join(LOGS_DIR, f"dispatch_{int(time.time())}.json")
+        with open(log_file, 'w') as f:
+            json.dump({
+                'start_time': state['start_time'],
+                'completed_time': state['completed_time'],
+                'total_delivered': state['success_count'],
+                'records': records
+            }, f, indent=2)
+    except Exception:
+        pass
 
 # -------------------------------------------------------------
 # HTTP REST API Routes
@@ -440,8 +461,7 @@ def api_config():
         return jsonify({'status': 'ok', 'message': 'Configuration saved successfully'})
 
     creds = load_env_creds()
-    # Mask password for safety in UI
-    masked_pwd = creds['GMAIL_APP_PASSWORD']
+    masked_pwd = creds.get('GMAIL_APP_PASSWORD', '')
     return jsonify({
         'gmail_user': creds.get('GMAIL_USER', ''),
         'has_password': bool(masked_pwd),
@@ -453,15 +473,10 @@ def api_config():
 
 @app.route('/api/upload-csv', methods=['POST'])
 def api_upload_csv():
-    """
-    Accepts CSV/TSV file upload, raw text, or Google Sheets URL.
-    """
     csv_text = ""
-    # Option 1: Google Sheets URL
     url = request.form.get('sheet_url') or (request.json.get('sheet_url') if request.is_json else None)
     if url:
         url = url.strip()
-        # Convert Google Sheets URL to CSV export link
         match = re.search(r'/spreadsheets/d/([a-zA-Z0-9-_]+)', url)
         if match:
             sheet_id = match.group(1)
@@ -479,19 +494,16 @@ def api_upload_csv():
         else:
             return jsonify({'error': 'Invalid Google Sheets URL format'}), 400
 
-    # Option 2: Uploaded File
     if not csv_text and 'file' in request.files:
         f = request.files['file']
         csv_text = f.read().decode('utf-8', errors='ignore')
 
-    # Option 3: Raw pasted CSV content
     if not csv_text and request.form.get('csv_content'):
         csv_text = request.form.get('csv_content')
 
     if not csv_text.strip():
         return jsonify({'error': 'No CSV data provided'}), 400
 
-    # Parse CSV
     try:
         reader = csv.reader(StringIO(csv_text))
         rows = list(reader)
@@ -507,7 +519,6 @@ def api_upload_csv():
                 item[h] = r[i].strip() if i < len(r) else ''
             records.append(item)
 
-        # Detect columns
         name_col = ""
         email_col = ""
         extra_col = ""
@@ -521,7 +532,6 @@ def api_upload_csv():
             elif not extra_col and any(k in lh for k in ['roll', 'duty', 'id', 'department', 'section']):
                 extra_col = h
 
-        # Fallbacks
         if not name_col and headers:
             name_col = headers[0]
         if not email_col and len(headers) > 1:
@@ -543,9 +553,6 @@ def api_upload_csv():
 
 @app.route('/api/upload-pdfs', methods=['POST'])
 def api_upload_pdfs():
-    """
-    Accepts multiple PDF files or a .zip archive.
-    """
     files = request.files.getlist('pdfs') or request.files.getlist('file')
     if not files:
         return jsonify({'error': 'No PDF files attached'}), 400
@@ -554,7 +561,6 @@ def api_upload_pdfs():
     for f in files:
         fname = f.filename
         if fname.lower().endswith('.zip'):
-            # Extract zip
             zpath = os.path.join(UPLOAD_DIR, fname)
             f.save(zpath)
             try:
@@ -591,10 +597,6 @@ def api_upload_pdfs():
 
 @app.route('/api/load-sample', methods=['POST'])
 def api_load_sample():
-    """
-    Instant 1-Click loader for workshop participants or coordinators.
-    Allows instant testing without re-uploading 116 files.
-    """
     sample_type = (request.json or {}).get('type', 'participants')
 
     if sample_type == 'coordinators':
@@ -631,10 +633,9 @@ def api_load_sample():
     csv_file = next((c for c in csv_candidates if os.path.exists(c)), None)
     pdf_dir = next((d for d in pdf_candidates if os.path.exists(d)), None)
 
-    if not csv_file or not pdf_dir:
-        return jsonify({'error': 'Sample dataset not found on server'}), 404
+    if not csv_file:
+        return jsonify({'error': 'Sample CSV dataset not found'}), 404
 
-    # Load CSV
     records = []
     with open(csv_file, 'r', encoding='utf-8', errors='ignore') as f:
         reader = csv.DictReader(f)
@@ -643,9 +644,10 @@ def api_load_sample():
 
     headers = list(records[0].keys()) if records else []
 
-    # Load PDFs
-    pdf_paths = sorted(glob.glob(os.path.join(pdf_dir, '*.pdf')))
-    pdfs = [{'filename': os.path.basename(p), 'path': p, 'size': os.path.getsize(p)} for p in pdf_paths]
+    pdfs = []
+    if pdf_dir and os.path.exists(pdf_dir):
+        pdf_paths = sorted(glob.glob(os.path.join(pdf_dir, '*.pdf')))
+        pdfs = [{'filename': os.path.basename(p), 'path': p, 'size': os.path.getsize(p)} for p in pdf_paths]
 
     BATCH_STATE['csv_rows'] = records
     BATCH_STATE['columns'] = headers
@@ -663,9 +665,6 @@ def api_load_sample():
 
 @app.route('/api/match', methods=['POST'])
 def api_match():
-    """
-    Runs name extraction on each PDF and matches with the CSV records.
-    """
     name_col = request.json.get('name_col') if request.is_json else None
     email_col = request.json.get('email_col') if request.is_json else None
     extra_col = request.json.get('extra_col') if request.is_json else None
@@ -740,7 +739,6 @@ def api_match():
 
     BATCH_STATE['matched_records'] = results
 
-    # Stats
     total = len(results)
     matched_count = sum(1 for r in results if r['match_status'] in ['MATCHED', 'FUZZY_MATCH'] and r['email'])
     missing_email_count = sum(1 for r in results if r['match_status'] == 'MISSING_EMAIL')
@@ -757,9 +755,6 @@ def api_match():
 
 @app.route('/api/update-record', methods=['POST'])
 def api_update_record():
-    """
-    Allows user to inline edit a matched record (e.g. fix email, name, or toggle inclusion).
-    """
     data = request.json or {}
     record_id = data.get('id')
     for r in BATCH_STATE['matched_records']:
@@ -778,10 +773,6 @@ def api_update_record():
 
 @app.route('/api/preview-pdf/<path:filename>')
 def api_preview_pdf(filename):
-    """
-    Serves a PDF certificate for browser preview.
-    """
-    # Check upload dir first
     candidates = [
         os.path.join(PDF_UPLOAD_DIR, filename),
         os.path.join(SAMPLE_DIR, filename),
@@ -800,9 +791,6 @@ def api_preview_pdf(filename):
 
 @app.route('/api/send-test', methods=['POST'])
 def api_send_test():
-    """
-    Sends a single test email with attachment to verify credentials and template.
-    """
     data = request.json or {}
     test_email = data.get('test_email', '').strip()
     subject = data.get('subject', 'Certificate Test Delivery')
@@ -824,7 +812,6 @@ def api_send_test():
     if not user or not password:
         return jsonify({'error': 'Gmail User and App Password are required'}), 400
 
-    # Pick a sample PDF
     records = BATCH_STATE['matched_records']
     sample_pdf = None
     sample_name = "Test Participant"
@@ -836,13 +823,12 @@ def api_send_test():
                 break
 
     if not sample_pdf:
-        # Fallback to local cert
-        local_samples = glob.glob(os.path.join(PROJECT_DIR, 'drive_certificates', '*.pdf'))
-        if local_samples:
-            sample_pdf = local_samples[0]
+        sample_candidates = glob.glob(os.path.join(SAMPLE_DIR, '*.pdf')) + glob.glob(os.path.join(BASE_DIR, 'drive_certificates', '*.pdf')) + glob.glob(os.path.join(os.path.dirname(BASE_DIR), 'drive_certificates', '*.pdf'))
+        if sample_candidates:
+            sample_pdf = sample_candidates[0]
 
     if not sample_pdf or not os.path.exists(sample_pdf):
-        return jsonify({'error': 'No PDF certificate available to attach for test'}), 400
+        return jsonify({'error': 'No PDF certificate file available on server to attach'}), 400
 
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
@@ -869,9 +855,6 @@ def api_send_test():
 
 @app.route('/api/dispatch', methods=['POST'])
 def api_start_dispatch():
-    """
-    Initiates batch email sending in a background thread.
-    """
     if BATCH_STATE['dispatch']['is_running']:
         return jsonify({'error': 'A dispatch job is already running'}), 400
 
@@ -891,9 +874,8 @@ def api_start_dispatch():
         password = creds.get('GMAIL_APP_PASSWORD')
 
     if not user or not password:
-        return jsonify({'error': 'Missing Gmail credentials. Check .env or enter them in settings.'}), 400
+        return jsonify({'error': 'Missing Gmail credentials. Enter them in the settings panel.'}), 400
 
-    # Start thread
     t = threading.Thread(
         target=dispatch_worker,
         args=(user, password, sender_name, subject, body, regards, delay),
@@ -905,9 +887,6 @@ def api_start_dispatch():
 
 @app.route('/api/dispatch-status', methods=['GET'])
 def api_dispatch_status():
-    """
-    Returns real-time progress and logs.
-    """
     st = BATCH_STATE['dispatch']
     pct = round((st['current_index'] / st['total'] * 100) if st['total'] > 0 else 0, 1)
     return jsonify({
@@ -919,7 +898,7 @@ def api_dispatch_status():
         'success_count': st['success_count'],
         'skip_count': st['skip_count'],
         'fail_count': st['fail_count'],
-        'logs': st['logs'][-50:], # last 50 log items
+        'logs': st['logs'][-50:],
         'start_time': st['start_time'],
         'completed_time': st['completed_time']
     })
