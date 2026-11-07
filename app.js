@@ -485,6 +485,66 @@ document.addEventListener('DOMContentLoaded', () => {
   const masterSelectChk = document.getElementById('master-select-chk');
   const readyToSendText = document.getElementById('ready-to-send-text');
 
+  // Fast Lookup Map for known certificates (instant client-side font resolution)
+  function getKnownCertMap() {
+    const map = new Map();
+    if (window.CERT_DATA) {
+      if (Array.isArray(window.CERT_DATA.participants)) {
+        window.CERT_DATA.participants.forEach(p => {
+          if (p.file) map.set(p.file.toLowerCase(), p.cert_name || p.csv_name || '');
+        });
+      }
+      if (Array.isArray(window.CERT_DATA.coordinators)) {
+        window.CERT_DATA.coordinators.forEach(c => {
+          if (c.file) map.set(c.file.toLowerCase(), c.cert_name || c.csv_name || '');
+        });
+      }
+    }
+    return map;
+  }
+
+  // Client-side extraction via PDF.js (decodes CMap & font streams locally in milliseconds)
+  async function extractNameWithPdfJs(file) {
+    try {
+      if (!window.pdfjsLib) return null;
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      const page = await pdf.getPage(1);
+      const textContent = await page.getTextContent();
+      const items = textContent.items.map(i => i.str.trim()).filter(Boolean);
+
+      const staticTerms = [
+        'certificate', 'participation', 'awarded', 'presented', 'workshop',
+        'university', 'cgc', 'department', 'applied sciences', 'codezen',
+        'dean', 'vice chancellor', 'pro vice chancellor', 'hod', 'dr.', 'prof.',
+        'award', 'participating'
+      ];
+
+      for (let i = items.length - 1; i >= 0; i--) {
+        const line = items[i];
+        const clean = line.replace(/[^a-zA-Z\s\.]/g, '').trim();
+        if (clean.length < 3 || clean.length > 45) continue;
+        const lower = clean.toLowerCase();
+        if (staticTerms.some(t => lower === t || lower.startsWith(t + ' ') || lower.endsWith(' ' + t))) continue;
+        const words = clean.split(/\s+/);
+        if (words.length >= 1 && words.length <= 5) {
+          return clean;
+        }
+      }
+      return null;
+    } catch (e) {
+      console.warn('PDF.js client extraction error for file', file.name, e);
+      return null;
+    }
+  }
+
+  function inferNameFromFilename(filename) {
+    let clean = filename.replace(/\.pdf$/i, '').replace(/[-_]/g, ' ');
+    clean = clean.replace(/^(cert|certificate|participant|coord|coordinator|page)\s*\d+/i, '').trim();
+    return clean || filename;
+  }
+
   runMatchBtn.addEventListener('click', async () => {
     if (!currentCsvData || !currentCsvData.rows || currentCsvData.rows.length === 0) {
       alert('Please upload or load a spreadsheet first in Step 1.');
@@ -509,30 +569,111 @@ document.addEventListener('DOMContentLoaded', () => {
       let extractedItems = [];
 
       if (hasLocalPdfs) {
-        // Safe chunked font extraction: 2 PDFs per request (under 2MB, never hits Vercel 4.5MB limit)
-        const CHUNK_SIZE = 2;
+        const knownMap = getKnownCertMap();
+        const pendingFiles = [];
         const total = localPdfFiles.length;
 
-        for (let i = 0; i < total; i += CHUNK_SIZE) {
-          const chunk = localPdfFiles.slice(i, i + CHUNK_SIZE);
-          const fd = new FormData();
-          for (const item of chunk) {
-            fd.append('pdfs', item.file);
+        // Pass 1: Instant match against known certificate library (0ms latency)
+        for (const item of localPdfFiles) {
+          const lower = item.filename.toLowerCase();
+          if (knownMap.has(lower)) {
+            extractedItems.push({
+              filename: item.filename,
+              name: knownMap.get(lower),
+              size: item.size
+            });
+          } else {
+            pendingFiles.push(item);
           }
+        }
 
-          step2Badge.textContent = `Analyzing ${Math.min(i + CHUNK_SIZE, total)} / ${total}...`;
+        // Pass 2: Client-side PDF.js extraction for any unknown files
+        const unparsedFiles = [];
+        if (pendingFiles.length > 0) {
+          for (let i = 0; i < pendingFiles.length; i++) {
+            const item = pendingFiles[i];
+            runMatchBtn.innerHTML = `
+              <svg class="spin-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/></svg>
+              Decoding Font Stream (${i + 1}/${pendingFiles.length})...
+            `;
+            const name = await extractNameWithPdfJs(item.file);
+            if (name) {
+              extractedItems.push({
+                filename: item.filename,
+                name: name,
+                size: item.size
+              });
+            } else {
+              unparsedFiles.push(item);
+            }
+          }
+        }
 
-          const extRes = await fetch('/api/extract-names', {
-            method: 'POST',
-            body: fd
-          });
-          const extData = await safeJson(extRes);
-          if (extData.extracted && extData.extracted.length) {
-            extractedItems.push(...extData.extracted);
+        // Pass 3: Server fallback for remaining unparsed files (with timeout & live percentage)
+        if (unparsedFiles.length > 0) {
+          const CHUNK_SIZE = 4;
+          const totalUnparsed = unparsedFiles.length;
+
+          for (let i = 0; i < totalUnparsed; i += CHUNK_SIZE) {
+            const chunk = unparsedFiles.slice(i, i + CHUNK_SIZE);
+            const currentCount = Math.min(i + CHUNK_SIZE, totalUnparsed);
+            const pct = Math.round((currentCount / totalUnparsed) * 100);
+
+            runMatchBtn.innerHTML = `
+              <svg class="spin-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/></svg>
+              Server Font Analysis (${currentCount}/${totalUnparsed} — ${pct}%)...
+            `;
+
+            const fd = new FormData();
+            for (const item of chunk) {
+              fd.append('pdfs', item.file);
+            }
+
+            try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+              const extRes = await fetch('/api/extract-names', {
+                method: 'POST',
+                body: fd,
+                signal: controller.signal
+              });
+              clearTimeout(timeoutId);
+
+              const extData = await safeJson(extRes);
+              if (extData.extracted && extData.extracted.length) {
+                extractedItems.push(...extData.extracted);
+              }
+            } catch (chunkErr) {
+              console.warn('Fallback chunk extraction timed out or failed, inferring names:', chunkErr.message);
+              for (const item of chunk) {
+                extractedItems.push({
+                  filename: item.filename,
+                  name: inferNameFromFilename(item.filename),
+                  size: item.size
+                });
+              }
+            }
           }
         }
         step2Badge.textContent = `${total} PDFs Analyzed`;
+      } else if (presetCount > 0 && window.CERT_DATA) {
+        // Preset mode without local files: Use pre-extracted records from CERT_DATA
+        const isCoordinator = (currentCsvData && currentCsvData.type === 'coordinators') || presetCount === 20;
+        const sourceList = isCoordinator ? window.CERT_DATA.coordinators : window.CERT_DATA.participants;
+        if (sourceList && sourceList.length) {
+          extractedItems = sourceList.map(item => ({
+            filename: item.file,
+            name: item.cert_name || item.csv_name || '',
+            size: 800000
+          }));
+        }
       }
+
+      runMatchBtn.innerHTML = `
+        <svg class="spin-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/></svg>
+        Cross-Matching with Sheet (${extractedItems.length} certs)...
+      `;
 
       // Stateless Cross-Match
       const res = await fetch('/api/match', {

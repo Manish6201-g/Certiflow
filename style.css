@@ -287,6 +287,17 @@ body.light-theme .app-header {
   animation: statPulse 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.spin-icon {
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+  transform-origin: center;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .btn-icon {
   background: var(--neu-bg);
   box-shadow: var(--neu-extruded-sm);

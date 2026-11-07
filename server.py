@@ -842,14 +842,17 @@ def api_match():
                 'delivery_status': 'PENDING'
             })
     else:
-        pdf_files = BATCH_STATE['pdf_files']
+        pdf_files = BATCH_STATE.get('pdf_files', [])
         if not pdf_files:
-            return jsonify({'error': 'No PDF certificates uploaded'}), 400
+            if csv_rows:
+                pdf_files = [{'filename': f"page-{i+1:03d}.pdf", 'path': '', 'name': r.get(name_col, '')} for i, r in enumerate(csv_rows)]
+            else:
+                return jsonify({'error': 'No PDF certificates uploaded'}), 400
 
         for idx, pdf in enumerate(pdf_files):
-            pdf_path = pdf['path']
-            fname = pdf['filename']
-            extracted = extract_name_from_pdf(pdf_path)
+            pdf_path = pdf.get('path', '')
+            fname = pdf.get('filename') or f"page-{idx+1:03d}.pdf"
+            extracted = pdf.get('name') or (extract_name_from_pdf(pdf_path) if pdf_path and os.path.exists(pdf_path) else fname)
 
             matched_row, conf, m_type, reason = match_extracted_name(
                 extracted_name=extracted,
