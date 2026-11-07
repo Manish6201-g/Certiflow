@@ -139,10 +139,10 @@ BATCH_STATE = {
 def load_env_creds():
     # 1. First priority: Environment Variables (e.g. from Vercel Project Settings)
     creds = {
-        'GMAIL_USER': os.environ.get('GMAIL_USER', 'manish001yadav0@gmail.com'),
+        'GMAIL_USER': os.environ.get('GMAIL_USER', ''),
         'GMAIL_APP_PASSWORD': os.environ.get('GMAIL_APP_PASSWORD', ''),
-        'DEFAULT_SENDER_NAME': os.environ.get('DEFAULT_SENDER_NAME', 'CodeZen Club'),
-        'DEFAULT_REGARDS': os.environ.get('DEFAULT_REGARDS', 'CodeZen Club')
+        'DEFAULT_SENDER_NAME': os.environ.get('DEFAULT_SENDER_NAME', ''),
+        'DEFAULT_REGARDS': os.environ.get('DEFAULT_REGARDS', '')
     }
 
     # 2. Check local disk .env files
@@ -168,7 +168,7 @@ def load_env_creds():
                 pass
     return creds
 
-def save_env_creds(user, app_password, sender_name='CodeZen Club', regards='CodeZen Club'):
+def save_env_creds(user, app_password, sender_name='', regards=''):
     os.environ['GMAIL_USER'] = user
     os.environ['GMAIL_APP_PASSWORD'] = app_password
     os.environ['DEFAULT_SENDER_NAME'] = sender_name
@@ -508,8 +508,8 @@ def api_config():
         data = request.json or {}
         user = data.get('gmail_user', '').strip()
         pwd = data.get('gmail_password', '').strip()
-        sname = data.get('sender_name', 'CodeZen Club').strip()
-        reg = data.get('regards', 'CodeZen Club').strip()
+        sname = data.get('sender_name', '').strip()
+        reg = data.get('regards', '').strip()
         save_env_creds(user, pwd, sname, reg)
         return jsonify({'status': 'ok', 'message': 'Configuration saved successfully'})
 
@@ -520,8 +520,8 @@ def api_config():
         'has_password': bool(masked_pwd),
         'masked_password': (masked_pwd[:4] + '••••••••' + masked_pwd[-4:]) if len(masked_pwd) >= 8 else ('••••' if masked_pwd else ''),
         'raw_password': masked_pwd,
-        'sender_name': creds.get('DEFAULT_SENDER_NAME', 'CodeZen Club'),
-        'regards': creds.get('DEFAULT_REGARDS', 'CodeZen Club')
+        'sender_name': creds.get('DEFAULT_SENDER_NAME', ''),
+        'regards': creds.get('DEFAULT_REGARDS', '')
     })
 
 @app.route('/api/upload-csv', methods=['POST'])
@@ -692,72 +692,7 @@ def api_upload_pdfs():
 @app.route('/api/load-sample', methods=['POST'])
 @app.route('/load-sample', methods=['POST'])
 def api_load_sample():
-    sample_type = (request.json or {}).get('type', 'participants')
-
-    if sample_type == 'coordinators':
-        csv_candidates = [
-            os.path.join(SAMPLE_DIR, 'coordinators.csv'),
-            os.path.join(SAMPLE_DIR, 'coordinators_sample.csv'),
-            os.path.join(BASE_DIR, 'coordinators.csv'),
-            os.path.join(os.path.dirname(BASE_DIR), 'coordinators.csv')
-        ]
-        pdf_candidates = [
-            os.path.join(SAMPLE_DIR, 'coordinators'),
-            os.path.join(BASE_DIR, 'coordinator_certificates'),
-            os.path.join(os.path.dirname(BASE_DIR), 'coordinator_certificates')
-        ]
-        name_col = 'Coordinator Name'
-        email_col = 'Email Address'
-        extra_col = 'Assigned Duty'
-    else:
-        csv_candidates = [
-            os.path.join(SAMPLE_DIR, 'participants.csv'),
-            os.path.join(SAMPLE_DIR, 'participants_sample.csv'),
-            os.path.join(BASE_DIR, 'participants.csv'),
-            os.path.join(os.path.dirname(BASE_DIR), 'participants.csv')
-        ]
-        pdf_candidates = [
-            os.path.join(SAMPLE_DIR, 'participants'),
-            os.path.join(BASE_DIR, 'drive_certificates'),
-            os.path.join(os.path.dirname(BASE_DIR), 'drive_certificates')
-        ]
-        name_col = 'Name'
-        email_col = 'Email'
-        extra_col = 'Roll No'
-
-    csv_file = next((c for c in csv_candidates if os.path.exists(c)), None)
-    pdf_dir = next((d for d in pdf_candidates if os.path.exists(d)), None)
-
-    if not csv_file:
-        return jsonify({'error': 'Sample CSV dataset not found'}), 404
-
-    records = []
-    with open(csv_file, 'r', encoding='utf-8', errors='ignore') as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            records.append({k.strip(): v.strip() for k, v in r.items() if k})
-
-    headers = list(records[0].keys()) if records else []
-
-    pdfs = []
-    if pdf_dir and os.path.exists(pdf_dir):
-        pdf_paths = sorted(glob.glob(os.path.join(pdf_dir, '*.pdf')))
-        pdfs = [{'filename': os.path.basename(p), 'path': p, 'size': os.path.getsize(p)} for p in pdf_paths]
-
-    BATCH_STATE['csv_rows'] = records
-    BATCH_STATE['columns'] = headers
-    BATCH_STATE['detected_cols'] = {'name': name_col, 'email': email_col, 'extra': extra_col}
-    BATCH_STATE['pdf_files'] = pdfs
-
-    return jsonify({
-        'status': 'ok',
-        'type': sample_type,
-        'row_count': len(records),
-        'pdf_count': len(pdfs),
-        'columns': headers,
-        'detected': BATCH_STATE['detected_cols'],
-        'rows': records
-    })
+    return jsonify({'error': 'Demo data sets have been removed. Please upload your spreadsheet and PDF files directly.'}), 400
 
 @app.route('/api/match', methods=['POST'])
 @app.route('/match', methods=['POST'])
@@ -960,8 +895,8 @@ def api_send_test():
     test_email = data.get('test_email', '').strip()
     subject = data.get('subject', 'Certificate Test Delivery')
     body = data.get('body', 'This is a test certificate dispatch.')
-    regards = data.get('regards', 'CodeZen Club')
-    sender_name = data.get('sender_name', 'CodeZen Club')
+    regards = data.get('regards', '')
+    sender_name = data.get('sender_name', '')
     user = data.get('gmail_user')
     password = data.get('gmail_password')
 
@@ -1024,8 +959,8 @@ def api_send_single():
     creds = load_env_creds()
     sender_email = request.form.get('gmail_user') or creds.get('GMAIL_USER')
     app_password = request.form.get('gmail_password') or creds.get('GMAIL_APP_PASSWORD')
-    sender_name = request.form.get('sender_name') or creds.get('DEFAULT_SENDER_NAME', 'CodeZen Club')
-    regards = request.form.get('regards') or creds.get('DEFAULT_REGARDS', 'CodeZen Club')
+    sender_name = request.form.get('sender_name') or creds.get('DEFAULT_SENDER_NAME', '')
+    regards = request.form.get('regards') or creds.get('DEFAULT_REGARDS', '')
 
     if not sender_email or not app_password:
         return jsonify({'error': 'Gmail credentials not configured. Please check SMTP settings.'}), 400
@@ -1108,10 +1043,10 @@ def api_start_dispatch():
     data = request.json or {}
     user = data.get('gmail_user')
     password = data.get('gmail_password')
-    sender_name = data.get('sender_name', 'CodeZen Club')
+    sender_name = data.get('sender_name') or creds.get('DEFAULT_SENDER_NAME', '')
     subject = data.get('subject', 'Certificate of Participation')
     body = data.get('body', '')
-    regards = data.get('regards', 'CodeZen Club')
+    regards = data.get('regards') or creds.get('DEFAULT_REGARDS', '')
     delay = float(data.get('delay', 1.0))
 
     creds = load_env_creds()

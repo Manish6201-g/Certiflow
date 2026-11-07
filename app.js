@@ -25,12 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // =========================================================
   // SESSION-BASED DELIVERY AUDIT (Auto-clears on tab close / 20m inactivity)
   // =========================================================
-  const SESSION_KEY = 'certiflow_session_audit_v2';
+  const SESSION_KEY = 'certiflow_session_audit_v3';
   const SESSION_TTL_MS = 20 * 60 * 1000; // 20 minutes inactivity TTL
 
   function loadSessionAuditRecords() {
-    // Purge legacy permanent localStorage
-    try { localStorage.removeItem('certiflow_audit_records'); } catch (e) {}
+    // Purge legacy storage and old demo session states
+    try {
+      localStorage.removeItem('certiflow_audit_records');
+      sessionStorage.removeItem('certiflow_session_audit');
+      sessionStorage.removeItem('certiflow_session_audit_v1');
+      sessionStorage.removeItem('certiflow_session_audit_v2');
+    } catch (e) {}
 
     try {
       const raw = sessionStorage.getItem(SESSION_KEY);
@@ -61,19 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
     allAuditRecords = [];
     try {
       sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem('certiflow_session_audit_v2');
       localStorage.removeItem('certiflow_audit_records');
     } catch (e) {}
-    refreshHeaderStats();
-    renderAuditTable();
-  }
-
-  function loadDemoAuditData() {
-    const auditData = window.CERT_DATA || { participants: [], coordinators: [] };
-    allAuditRecords = [
-      ...auditData.participants.map(p => ({ ...p, category: 'Participant' })),
-      ...auditData.coordinators.map(c => ({ ...c, category: 'Coordinator' }))
-    ];
-    saveSessionAuditRecords(allAuditRecords);
     refreshHeaderStats();
     renderAuditTable();
   }
@@ -343,32 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
     mappingContainer.style.display = 'grid';
   }
 
-  // Quick Presets
-  document.getElementById('load-sample-participants').addEventListener('click', () => loadSample('participants'));
-  document.getElementById('load-sample-coordinators').addEventListener('click', () => loadSample('coordinators'));
-
-  async function loadSample(type) {
-    try {
-      const res = await fetch('/api/load-sample', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type })
-      });
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(data.error || 'Failed to load sample');
-      onCsvLoaded(data);
-      onPdfsUploaded(data.pdf_count);
-      // Auto switch template preset
-      if (type === 'coordinators') {
-        applyCoordinatorTemplate();
-      } else {
-        applyParticipantTemplate();
-      }
-    } catch (err) {
-      alert(`Error loading sample: ${err.message}`);
-    }
-  }
-
   // =========================================================
   // STEP 2: PDF CERTIFICATES HANDLING
   // =========================================================
@@ -401,9 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
       handlePdfFilesSelection(e.target.files);
     }
   });
-
-  document.getElementById('mount-participant-pdfs').addEventListener('click', () => loadSample('participants'));
-  document.getElementById('mount-coordinator-pdfs').addEventListener('click', () => loadSample('coordinators'));
 
   async function handlePdfFilesSelection(fileList) {
     step2Badge.textContent = 'Reading files...';
@@ -883,40 +849,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const testSendStatus = document.getElementById('test-send-status');
   const btnDispatchAll = document.getElementById('btn-dispatch-all');
 
-  // Templates
-  document.getElementById('template-preset-participant').addEventListener('click', applyParticipantTemplate);
-  document.getElementById('template-preset-coordinator').addEventListener('click', applyCoordinatorTemplate);
-
-  function applyParticipantTemplate() {
-    senderNameInput.value = 'CodeZen Club';
-    regardsInput.value = 'CodeZen Club & Department of Applied Sciences\nCGC University, Mohali';
-    emailSubjectInput.value = 'Certificate of Participation – Real-World API Integration Workshop | CGC University';
-    emailBodyInput.value = `Dear {name},
-
-Thank you for actively participating in the workshop "Real-World API Integration Using Java", organised by the CodeZen Club and the Department of Applied Sciences, CGC University, Mohali.
-
-Please find your official Certificate of Participation attached with this email.
-
-We appreciate your enthusiasm and dedication, and we wish you continued success in your learning journey and future endeavours.
-
-Warm regards,
-{regards}`;
-  }
-
-  function applyCoordinatorTemplate() {
-    senderNameInput.value = 'CodeZen';
-    regardsInput.value = 'CodeZen';
-    emailSubjectInput.value = 'Certificate of Coordination – Real-World API Integration Workshop | CGC University';
-    emailBodyInput.value = `Dear {name},
-
-Thank you for your valuable contribution and dedication as a coordinator for the workshop "Real-World API Integration Using Java", organised by the CodeZen Club and the Department of Applied Sciences, CGC University, Mohali.
-
-Please find your official Certificate of Coordination attached with this email.
-
-Warm regards,
-{regards}`;
-  }
-
   // Toggle Password Visibility
   togglePwdBtn.addEventListener('click', () => {
     if (gmailPasswordInput.type === 'password') {
@@ -1382,13 +1314,6 @@ Warm regards,
       if (confirm('Are you sure you want to clear all audit records for this session?')) {
         clearSessionAudit();
       }
-    });
-  }
-
-  const loadSampleAuditBtn = document.getElementById('load-sample-audit-btn');
-  if (loadSampleAuditBtn) {
-    loadSampleAuditBtn.addEventListener('click', () => {
-      loadDemoAuditData();
     });
   }
 

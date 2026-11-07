@@ -121,13 +121,6 @@
               </div>
             </div>
 
-            <!-- Quick Load Presets -->
-            <div class="preset-btn-bar">
-              <span style="font-size:0.75rem; color:var(--text-muted); align-self:center;">Quick Presets:</span>
-              <button id="load-sample-participants" class="btn-preset">⚡ Workshop Participants (116)</button>
-              <button id="load-sample-coordinators" class="btn-preset">⚡ Coordinators (20)</button>
-            </div>
-
             <!-- Column Mapping Controls (Revealed when CSV loaded) -->
             <div id="mapping-container" class="mapping-grid" style="display:none;">
               <div class="mapping-field">
@@ -167,13 +160,6 @@
                 <span>Supports multiple PDFs or .zip archive</span>
               </div>
               <input type="file" id="pdf-file-input" accept=".pdf,.zip" multiple style="display:none">
-            </div>
-
-            <!-- Quick Local Files Mount Button -->
-            <div class="preset-btn-bar" style="margin-top:1.25rem;">
-              <span style="font-size:0.75rem; color:var(--text-muted); align-self:center;">Local Batches:</span>
-              <button id="mount-participant-pdfs" class="btn-preset">⚡ Mount 116 Participant PDFs</button>
-              <button id="mount-coordinator-pdfs" class="btn-preset">⚡ Mount 20 Coordinator PDFs</button>
             </div>
 
             <div id="pdf-summary-pill" style="margin-top:1.25rem; font-size:0.82rem; color:#34d399; display:none;">
@@ -273,10 +259,6 @@
               <span class="step-num">4</span>
               <h3 class="step-title">Email Configuration & Bulk Dispatch</h3>
             </div>
-            <div class="preset-btn-bar" style="margin-top:0;">
-              <button id="template-preset-participant" class="btn-preset">Participant Email Template</button>
-              <button id="template-preset-coordinator" class="btn-preset">Coordinator Email Template</button>
-            </div>
           </div>
 
           <!-- Email Configuration Grid -->
@@ -285,7 +267,7 @@
             <div>
               <div class="form-group" style="margin-bottom:1rem;">
                 <label for="gmail-sender" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Gmail Sender Address</label>
-                <input type="email" id="gmail-sender" value="manish001yadav0@gmail.com" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                <input type="email" id="gmail-sender" placeholder="your-email@gmail.com" value="" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
               </div>
 
               <div class="form-group" style="margin-bottom:1rem;">
@@ -294,17 +276,17 @@
                   <button type="button" id="toggle-pwd-btn" style="background:none; border:none; color:var(--accent-blue); font-size:0.75rem; cursor:pointer;">Show</button>
                 </div>
                 <input type="password" id="gmail-password" placeholder="16-character Google App Password" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem; font-family:var(--font-mono);">
-                <small style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Stored securely in <code>/Users/manish/certificates/.env</code></small>
+                <small style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Stored securely in server environment (.env)</small>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
                   <label for="sender-name-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Sender Display Name</label>
-                  <input type="text" id="sender-name-input" value="CodeZen Club" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                  <input type="text" id="sender-name-input" placeholder="e.g. Event Organizing Team" value="" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
                 </div>
                 <div class="form-group">
                   <label for="regards-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Regards / Sign-off</label>
-                  <input type="text" id="regards-input" value="CodeZen Club" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                  <input type="text" id="regards-input" placeholder="e.g. Event Coordinator" value="" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
                 </div>
               </div>
 
@@ -312,7 +294,7 @@
               <div style="background:var(--bg-surface); padding:1rem; border-radius:var(--radius-md); border:1px solid var(--border-color); margin-top:1rem;">
                 <label for="test-email-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Send 1 Test Email to Yourself:</label>
                 <div style="display:flex; gap:0.5rem;">
-                  <input type="email" id="test-email-input" value="manish001yadav0@gmail.com" placeholder="your-email@gmail.com" style="flex:1; padding:0.45rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                  <input type="email" id="test-email-input" value="" placeholder="your-email@gmail.com" style="flex:1; padding:0.45rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
                   <button id="btn-send-test" class="btn btn-secondary" style="font-size:0.8rem; white-space:nowrap;">✉️ Send Test</button>
                 </div>
                 <div id="test-send-status" style="margin-top:0.5rem; font-size:0.8rem; display:none;"></div>
@@ -323,7 +305,7 @@
             <div>
               <div class="form-group" style="margin-bottom:1rem;">
                 <label for="email-subject-input" style="font-size:0.75rem; font-weight:600; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Subject Line</label>
-                <input type="text" id="email-subject-input" value="Certificate of Participation – Real-World API Integration Workshop | CGC University" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
+                <input type="text" id="email-subject-input" value="Certificate of Participation" placeholder="e.g. Certificate of Participation" style="width:100%; padding:0.5rem 0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:0.85rem;">
               </div>
 
               <div class="form-group" style="margin-bottom:1rem;">
@@ -333,11 +315,9 @@
                 </div>
                 <textarea id="email-body-input" rows="8" style="width:100%; padding:0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-family:inherit; font-size:0.85rem; line-height:1.5;">Dear {name},
 
-Thank you for actively participating in the workshop "Real-World API Integration Using Java", organised by the CodeZen Club and the Department of Applied Sciences, CGC University, Mohali.
+Thank you for your participation.
 
-Please find your official Certificate of Participation attached with this email.
-
-We appreciate your enthusiasm and dedication, and we wish you continued success in your learning journey and future endeavours.
+Please find your official Certificate attached with this email.
 
 Warm regards,
 {regards}</textarea>
@@ -469,9 +449,6 @@ Warm regards,
         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="margin-bottom:0.75rem;"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.5L19 7.5V19a2 2 0 0 1-2 2z"/></svg>
         <p style="font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-bottom:0.35rem;">No Delivery Audit Records In This Session</p>
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.25rem;">Dispatched certificates will automatically refresh here live after every send. All session data auto-clears when you leave.</p>
-        <button id="load-sample-audit-btn" class="btn btn-secondary" style="font-size:0.85rem; padding:0.4rem 0.9rem;">
-          Load Demo Workshop History (136 Certs)
-        </button>
       </div>
     </section>
 
